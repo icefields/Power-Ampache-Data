@@ -1,0 +1,58 @@
+{
+    "total_count": 1,
+    "md5": "60fda3b54003017dc64a0c492471bbfe",
+    "album": [
+        {
+            "id": "8",
+            "name": "Nofi Devices",
+            "prefix": null,
+            "basename": "Nofi Devices",
+            "artist": {
+                "id": "14",
+                "name": "Nofi\/found.",
+                "prefix": "",
+                "basename": "Nofi\/found."
+            },
+            "artists": [
+                {
+                    "id": "14",
+                    "name": "Nofi\/found.",
+                    "prefix": "",
+                    "basename": "Nofi\/found."
+                }
+            ],
+            "songartists": [
+                {
+                    "id": "14",
+                    "name": "Nofi\/found.",
+                    "prefix": "",
+                    "basename": "Nofi\/found."
+                }
+            ],
+            "time": 4423,
+            "year": 0,
+            "tracks": [],
+            "songcount": 11,
+            "diskcount": 1,
+            "type": null,
+            "genre": [
+                {
+                    "id": "5",
+                    "name": "Electronica"
+                },
+                {
+                    "id": "6",
+                    "name": "Dance"
+                }
+            ],
+            "art": "https:\/\/music.com.au\/image.php?object_id=8&object_type=album&id=70&name=art.jpg",
+            "has_art": true,
+            "flag": false,
+            "rating": 2,
+            "averagerating": null,
+            "mbid": null,
+            "mbid_group": null,
+            "catalog": "1"
+        }
+    ]
+}

@@ -1,0 +1,20 @@
+{
+    "id": "4",
+    "username": "user",
+    "auth": "demodemo",
+    "email": "generic@gmail.com",
+    "access": 100,
+    "streamtoken": null,
+    "fullname_public": false,
+    "validation": null,
+    "disabled": false,
+    "create_date": 1670202701,
+    "last_seen": 1751344281,
+    "link": "https:\/\/music.com.au\/stats.php?action=show_user&user_id=4",
+    "website": null,
+    "state": null,
+    "city": null,
+    "art": "https:\/\/music.com.au\/images\/blankalbum_128x128.png",
+    "has_art": false,
+    "fullname": "Some Guy"
+}

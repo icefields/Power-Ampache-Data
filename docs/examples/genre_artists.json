@@ -1,0 +1,36 @@
+{
+    "total_count": 1,
+    "md5": "78525e41f5c2848ff7e1a2337fb96361",
+    "artist": [
+        {
+            "id": "14",
+            "name": "Nofi\/found.",
+            "prefix": null,
+            "basename": "Nofi\/found.",
+            "albums": [],
+            "albumcount": 1,
+            "songs": [],
+            "songcount": 11,
+            "genre": [
+                {
+                    "id": "5",
+                    "name": "Electronica"
+                },
+                {
+                    "id": "6",
+                    "name": "Dance"
+                }
+            ],
+            "art": "https:\/\/music.com.au\/images\/blankalbum_128x128.png",
+            "has_art": false,
+            "flag": false,
+            "rating": 2,
+            "averagerating": null,
+            "mbid": null,
+            "summary": "Nofi\/found. is the work of Jeffrey Melton released prior to 2005. From the website:\nNofi is neither hi-fi nor lo-fi, but a state of being-without-boundaries (i.e. \u2019stateless\u2019). ",
+            "time": 4423,
+            "yearformed": 0,
+            "placeformed": null
+        }
+    ]
+}

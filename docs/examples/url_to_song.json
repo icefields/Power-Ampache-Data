@@ -1,0 +1,8 @@
+{
+    "error": {
+        "errorCode": "4710",
+        "errorAction": "url_to_song",
+        "errorType": "url",
+        "errorMessage": "Bad Request"
+    }
+}

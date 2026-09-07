@@ -1,0 +1,16 @@
+{
+    "localplay": {
+        "command": {
+            "status": {
+                "state": "stop",
+                "volume": "25",
+                "repeat": false,
+                "random": false,
+                "track": 2,
+                "track_title": "Today I Woke to the Rain of Blood",
+                "track_artist": "Combichrist",
+                "track_album": "Everybody Hates You"
+            }
+        }
+    }
+}

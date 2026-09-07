@@ -1,0 +1,28 @@
+{
+    "total_count": 3,
+    "md5": "8467c1b7b44644e447396e82f11cc16b",
+    "catalog_id": "3",
+    "parent_id": "2",
+    "parent_type": "podcast",
+    "child_type": "podcast_episode",
+    "browse": [
+        {
+            "id": "22",
+            "name": "What Do an Army of Ants and an Online Encyclopedia Have in Common?",
+            "prefix": null,
+            "basename": "What Do an Army of Ants and an Online Encyclopedia Have in Common?"
+        },
+        {
+            "id": "23",
+            "name": "I Laughed So Hard I Cried",
+            "prefix": null,
+            "basename": "I Laughed So Hard I Cried"
+        },
+        {
+            "id": "24",
+            "name": "Coming Soon",
+            "prefix": null,
+            "basename": "Coming Soon"
+        }
+    ]
+}

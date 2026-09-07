@@ -1,0 +1,8 @@
+{
+    "error": {
+        "errorCode": "4704",
+        "errorAction": "playlist_add",
+        "errorType": "id",
+        "errorMessage": "Not Found: 32"
+    }
+}

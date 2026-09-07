@@ -1,0 +1,21 @@
+{
+    "id": "127",
+    "name": "renamejson",
+    "owner": "user",
+    "user": {
+        "id": "4",
+        "username": "user"
+    },
+    "items": 0,
+    "type": "private",
+    "art": "https:\/\/music.com.au\/images\/blankalbum_128x128.png",
+    "has_access": true,
+    "has_collaborate": true,
+    "has_art": false,
+    "flag": false,
+    "rating": null,
+    "averagerating": null,
+    "md5": null,
+    "last_update": 1785997512,
+    "time": 0
+}

@@ -1,0 +1,11 @@
+.venv/
+.env*
+musicdb.db
+*.db-journal
+*.db-wal
+__pycache__/
+.env
+*.pem
+*.key
+secrets/
+.aider*

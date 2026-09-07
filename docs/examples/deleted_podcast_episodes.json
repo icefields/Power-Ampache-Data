@@ -1,0 +1,50 @@
+{
+    "total_count": 82675,
+    "md5": "513d82542c36fc3a2755723a7456076c",
+    "deleted_podcast_episode": [
+        {
+            "id": "44",
+            "addition_time": 1675665915,
+            "delete_time": 1670202698,
+            "title": "COVID, Quickly, Episode 3: Vaccine Inequality--plus Your Body the Variant Fighter",
+            "file": "\/mnt\/files-music\/ampache-test\/podcast\/60-Second Science\/1616779800-COVID, Quickly, Episode 3: Vaccine Inequality--plus Your Body the Variant Fighter-podcast.mp3",
+            "catalog": "3",
+            "total_count": 0,
+            "total_skip": 0,
+            "podcast": "1"
+        },
+        {
+            "id": "45",
+            "addition_time": 1675665915,
+            "delete_time": 1670202698,
+            "title": "Using Dragonflies as Contamination Detectors",
+            "file": "\/mnt\/files-music\/ampache-test\/podcast\/60-Second Science\/1616587200-Using Dragonflies as Contamination Detectors-podcast.mp3",
+            "catalog": "3",
+            "total_count": 0,
+            "total_skip": 0,
+            "podcast": "1"
+        },
+        {
+            "id": "46",
+            "addition_time": 1675665915,
+            "delete_time": 1670202698,
+            "title": "Smartphones Can Hear the Shape of Your Door Keys",
+            "file": "\/mnt\/files-music\/ampache-test\/podcast\/60-Second Science\/1616068800-Smartphones Can Hear the Shape of Your Door Keys-podcast.mp3",
+            "catalog": "3",
+            "total_count": 0,
+            "total_skip": 0,
+            "podcast": "1"
+        },
+        {
+            "id": "47",
+            "addition_time": 1675665915,
+            "delete_time": 1670202698,
+            "title": "Chimpanzees Show Altruism while Gathering around the Juice Fountain",
+            "file": "\/mnt\/files-music\/ampache-test\/podcast\/60-Second Science\/1615897800-Chimpanzees Show Altruism while Gathering around the Juice Fountain-podcast.mp3",
+            "catalog": "3",
+            "total_count": 0,
+            "total_skip": 0,
+            "podcast": "1"
+        }
+    ]
+}

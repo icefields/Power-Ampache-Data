@@ -1,0 +1,48 @@
+{
+    "total_count": 2,
+    "md5": "dc4a1e54d0bc4f9fe19b7bd35d9a6b63",
+    "playlist": [
+        {
+            "id": "65",
+            "name": "Nofi",
+            "owner": "user",
+            "user": {
+                "id": "4",
+                "username": "user"
+            },
+            "items": 11,
+            "type": "public",
+            "art": "https:\/\/music.com.au\/images\/blankalbum_128x128.png",
+            "has_access": true,
+            "has_collaborate": true,
+            "has_art": false,
+            "flag": false,
+            "rating": null,
+            "averagerating": null,
+            "md5": null,
+            "last_update": 1751265759,
+            "time": 4423
+        },
+        {
+            "id": "4",
+            "name": "random - user - private",
+            "owner": "user",
+            "user": {
+                "id": "4",
+                "username": "user"
+            },
+            "items": 43,
+            "type": "private",
+            "art": "https:\/\/music.com.au\/images\/blankalbum_128x128.png",
+            "has_access": true,
+            "has_collaborate": true,
+            "has_art": false,
+            "flag": false,
+            "rating": null,
+            "averagerating": null,
+            "md5": null,
+            "last_update": 1614054938,
+            "time": 19721
+        }
+    ]
+}

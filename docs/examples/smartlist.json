@@ -1,0 +1,21 @@
+{
+    "id": "smart_16",
+    "name": "Song 4* (System)",
+    "owner": "System",
+    "user": {
+        "id": "-1",
+        "username": "System"
+    },
+    "items": 0,
+    "type": "public",
+    "art": "https:\/\/music.com.au\/images\/blankalbum_128x128.png",
+    "has_access": true,
+    "has_collaborate": true,
+    "has_art": false,
+    "flag": false,
+    "rating": null,
+    "averagerating": null,
+    "md5": null,
+    "last_update": 0,
+    "time": 0
+}
