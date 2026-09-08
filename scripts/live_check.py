@@ -275,6 +275,55 @@ def main(argv):
              persisted is not None and persisted[0] == pickedAlbum.name)
         )
 
+    # --- Step 4d: getAlbumSongs + getArtistSongs (scoped song lists) --------------
+    print("\n[4d] getAlbumSongs + getArtistSongs (scoped song lists)")
+    if not albums:
+        print("    skipped — no album to pick")
+        results.append(("getAlbumSongs", False))
+        results.append(("getArtistSongs", False))
+    else:
+        # Pick the album with the most songs — never a fixed id.
+        pickedAlbum = max(albums, key=lambda album: album.songCount)
+        print("    picked album id %s (%s, songCount %d)"
+              % (pickedAlbum.id, pickedAlbum.name, pickedAlbum.songCount))
+
+        # getAlbumSongs: read-back is DB-derived — disk, trackNumber, searchTitle.
+        albumSongs = client.getAlbumSongs(pickedAlbum.id)
+        totalCount = (client.lastPayload or {}).get("total_count")
+        print("    getAlbumSongs(%s): %d returned, envelope total_count: %s"
+              % (pickedAlbum.id, len(albumSongs), totalCount))
+        for song in albumSongs[:3]:
+            print("    first: disk %d track %d — %s" % (song.disk, song.trackNumber, song.title))
+        if len(albumSongs) > 3:
+            last = albumSongs[-1]
+            print("    last:  disk %d track %d — %s" % (last.disk, last.trackNumber, last.title))
+        results.append(("getAlbumSongs returned rows", len(albumSongs) > 0))
+
+        # getArtistSongs: same artist, read-back ordered by searchTitle.
+        artistSongs = client.getArtistSongs(picked)
+        totalCount = (client.lastPayload or {}).get("total_count")
+        print("    getArtistSongs(%s): %d returned, envelope total_count: %s"
+              % (picked, len(artistSongs), totalCount))
+        if artistSongs:
+            print("    first by searchTitle: %s (id %s)" % (artistSongs[0].title, artistSongs[0].id))
+            print("    last  by searchTitle: %s (id %s)" % (artistSongs[-1].title, artistSongs[-1].id))
+        results.append(("getArtistSongs returned rows", len(artistSongs) > 0))
+
+        # Presence-based verification, never count growth (pre-populated DB):
+        # the album's songs exist in SongEntity with matching albumId.
+        connection = sqlite3.connect(dbPath)
+        try:
+            albumSongRows = connection.execute(
+                "SELECT title, trackNumber FROM SongEntity WHERE albumId = ? ORDER BY disk, trackNumber",
+                (pickedAlbum.id,),
+            ).fetchall()
+        finally:
+            connection.close()
+        print("    SongEntity rows with albumId=%s: %d" % (pickedAlbum.id, len(albumSongRows)))
+        if albumSongRows:
+            print("    example in DB: %s (track %d)" % (albumSongRows[0][0], albumSongRows[0][1]))
+        results.append(("album songs present in DB with matching albumId", len(albumSongRows) > 0))
+
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
     allOk = _report(results)
