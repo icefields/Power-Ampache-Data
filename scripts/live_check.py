@@ -50,16 +50,20 @@ def main(argv):
 
     client = AmpacheClient(dbPath=dbPath)
 
-    # --- Step 1: ping + getArtists ------------------------------------------------
-    print("\n[1] ping + getArtists(limit=%d)" % ARTIST_LIMIT)
-    ping = client.ping()
-    print("    ping: authenticated=" + str(ping.authenticated) + " api=" + str(ping.api))
+    # --- Step 1: getArtists (triggers the silent handshake), then ping ------------
+    # Order matters: ping works unauthenticated per the spec, so on a cold cache
+    # (no session yet) it would correctly report authenticated=False. getArtists
+    # is authenticated — it triggers the handshake from the stored key — so the
+    # ping AFTER it proves the persisted session token.
+    print("\n[1] getArtists(limit=%d) + ping" % ARTIST_LIMIT)
     artists = client.getArtists(limit=ARTIST_LIMIT)
     totalCount = (client.lastPayload or {}).get("total_count")
     print("    returned: %d artist(s), envelope total_count: %s" % (len(artists), totalCount))
     if artists:
         print("    first by searchName: %s (id %s)" % (artists[0].name, artists[0].id))
         print("    last  by searchName: %s (id %s)" % (artists[-1].name, artists[-1].id))
+    ping = client.ping()
+    print("    ping: authenticated=" + str(ping.authenticated) + " api=" + str(ping.api))
     results.append(("ping authenticated", ping.authenticated))
     results.append(("getArtists returned rows", len(artists) > 0))
 
