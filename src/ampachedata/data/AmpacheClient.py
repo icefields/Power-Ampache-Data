@@ -33,6 +33,15 @@ class AmpacheClient:
         self._artistRepository = ArtistRepository(self._database)
         self._albumRepository = AlbumRepository(self._database)
         self._songRepository = SongRepository(self._database)
+        self._lastPayload = None
+
+    @property
+    def lastPayload(self):
+        """Raw response of the last successful authenticated call (None before
+        the first one). Envelope-only fields the write-through flow doesn't
+        persist (total_count, md5, ...) are reachable here; entity data still
+        comes only from the DB read-back."""
+        return self._lastPayload
 
     def ping(self) -> PingResult:
         """Health check / expiry probe.
@@ -120,6 +129,7 @@ class AmpacheClient:
             token = self._sessionManager.reauthenticate()
             payload = self._send(action, params, token, credentials.serverUrl)
             raiseForError(payload)
+        self._lastPayload = payload
         return payload
 
     def _send(self, action, params, token, serverUrl):
