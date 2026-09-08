@@ -116,3 +116,21 @@ class SongRepository:
             _SELECT_SQL + " WHERE mediaId = ?", (songId,)
         ).fetchone()
         return _toSong(row) if row is not None else None
+
+    def getAlbumSongs(self, albumId):
+        """Read-back for the album_songs write-through: the album's songs in
+        disk/track order (searchTitle breaks ties)."""
+        rows = self._database.connection.execute(
+            "SELECT * FROM SongEntity WHERE albumId = ? ORDER BY disk, trackNumber, searchTitle",
+            (albumId,),
+        ).fetchall()
+        return [_toSong(row) for row in rows]
+
+    def getArtistSongs(self, artistId):
+        """Read-back for the artist_songs write-through: the artist's songs
+        ordered by searchTitle (same DB-derived default as getSongs)."""
+        rows = self._database.connection.execute(
+            "SELECT * FROM SongEntity WHERE artistId = ? ORDER BY searchTitle",
+            (artistId,),
+        ).fetchall()
+        return [_toSong(row) for row in rows]

@@ -239,6 +239,51 @@ class AmpacheClient:
             raise AmpacheError("song " + songRow["mediaId"] + " missing from DB after write-through")
         return song
 
+    def getAlbumSongs(self, albumId, offset=None, limit=None, cond=None, sort=None):
+        """album_songs: write-through for the songs of one album.
+
+        fetch -> map (song rows + HistoryEntity rows for played songs only;
+        null last_played maps to None and is dropped) -> upsert BOTH in one
+        transaction -> read back from the DB only: WHERE albumId = ? ORDER BY
+        disk, trackNumber, searchTitle. Envelope-only fields (total_count,
+        md5) are not persisted — reach them via lastPayload."""
+        params = self._listParams(
+            filter=albumId, offset=offset, limit=limit, cond=cond, sort=sort,
+        )
+        songs = self._fetchAllPages(ApiMethod.ALBUM_SONGS, params, "song")
+        songRows = [mapSong(song) for song in songs]
+        historyRows = [row for row in (mapHistory(song) for song in songs) if row is not None]
+        connection = self._database.connection
+        with connection:
+            if not connection.in_transaction:
+                connection.execute("BEGIN")
+            self._songRepository.upsertSongs(songRows)
+            self._historyRepository.upsertHistories(historyRows)
+        return self._songRepository.getAlbumSongs(albumId)
+
+    def getArtistSongs(self, artistId, top50=None, offset=None, limit=None,
+                       cond=None, sort=None):
+        """artist_songs: write-through for the songs of one artist.
+
+        fetch -> map (song rows + HistoryEntity rows for played songs only;
+        null last_played maps to None and is dropped) -> upsert BOTH in one
+        transaction -> read back from the DB only: WHERE artistId = ? ORDER
+        BY searchTitle. Envelope-only fields (total_count, md5) are not
+        persisted — reach them via lastPayload."""
+        params = self._listParams(
+            filter=artistId, top50=top50, offset=offset, limit=limit, cond=cond, sort=sort,
+        )
+        songs = self._fetchAllPages(ApiMethod.ARTIST_SONGS, params, "song")
+        songRows = [mapSong(song) for song in songs]
+        historyRows = [row for row in (mapHistory(song) for song in songs) if row is not None]
+        connection = self._database.connection
+        with connection:
+            if not connection.in_transaction:
+                connection.execute("BEGIN")
+            self._songRepository.upsertSongs(songRows)
+            self._historyRepository.upsertHistories(historyRows)
+        return self._songRepository.getArtistSongs(artistId)
+
     def _fetchAllPages(self, action, params, listKey):
         """The one place list-method pagination lives (CONVENTIONS: implement
         pagination once, reuse everywhere).
