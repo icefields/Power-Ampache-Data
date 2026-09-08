@@ -11,6 +11,26 @@ _UPSERT_SQL = "INSERT OR REPLACE INTO ArtistEntity ({}) VALUES ({})".format(
     ", ".join("?" * len(_COLUMNS)),
 )
 
+_SELECT_SQL = (
+    "SELECT id, name, albumCount, songCount, genre, artUrl, summary, time, "
+    "yearFormed, placeFormed FROM ArtistEntity"
+)
+
+
+def _toArtist(row) -> Artist:
+    return Artist(
+        id=row["id"],
+        name=row["name"],
+        albumCount=row["albumCount"],
+        songCount=row["songCount"],
+        genre=row["genre"],
+        artUrl=row["artUrl"],
+        summary=row["summary"],
+        time=row["time"],
+        yearFormed=row["yearFormed"],
+        placeFormed=row["placeFormed"],
+    )
+
 
 class ArtistRepository:
     def __init__(self, database):
