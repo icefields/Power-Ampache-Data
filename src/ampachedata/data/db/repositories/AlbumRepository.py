@@ -68,3 +68,19 @@ class AlbumRepository:
             _SELECT_SQL + " WHERE artistId = ? ORDER BY year, searchName", (artistId,)
         ).fetchall()
         return [_toAlbum(row) for row in rows]
+
+    def getAlbums(self):
+        """Read-back for the albums write-through flow: every AlbumEntity row,
+        ordered by year then searchName (DB-derived ordering)."""
+        rows = self._database.connection.execute(
+            _SELECT_SQL + " ORDER BY year, searchName"
+        ).fetchall()
+        return [_toAlbum(row) for row in rows]
+
+    def getAlbum(self, albumId):
+        """Read-back for the single-album write-through flow: the AlbumEntity
+        row with this id, or None."""
+        row = self._database.connection.execute(
+            _SELECT_SQL + " WHERE id = ?", (albumId,)
+        ).fetchone()
+        return _toAlbum(row) if row is not None else None

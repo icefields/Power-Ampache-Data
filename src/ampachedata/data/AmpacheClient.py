@@ -3,6 +3,7 @@
     fetch (Transport) -> map (mappers) -> upsert (repositories) -> read back (repositories)
 
 Repositories are SQL-only and never see HTTP; mappers never see SQL or domain."""
+from ..domain.Album import Album
 from ..domain.Artist import Artist
 from ..domain.PingResult import PingResult
 from ..domain.Song import Song
@@ -137,6 +138,53 @@ class AmpacheClient:
         rows = [mapAlbum(album) for album in albums]
         self._albumRepository.upsertAlbums(rows)
         return self._albumRepository.getAlbumsFromArtist(artistId)
+
+    def getAlbums(self, filter="", exact=None, offset=None, limit=None, add=None,
+                  update=None, cond=None, sort=None):
+        """albums: write-through for an album list.
+
+        fetch -> map -> upsert (one transaction, owned by AlbumRepository)
+        -> read back ALL albums ordered by year, searchName. The return value
+        comes only from the DB; envelope-only fields (total_count, md5) are
+        not persisted — reach them via lastPayload."""
+        params = self._listParams(
+            filter=filter, exact=exact, offset=offset, limit=limit,
+            add=add, update=update, cond=cond, sort=sort,
+        )
+        albums = self._fetchAllPages(ApiMethod.ALBUMS, params, "album")
+        rows = [mapAlbum(album) for album in albums]
+        self._albumRepository.upsertAlbums(rows)
+        return self._albumRepository.getAlbums()
+
+    def getAlbum(self, filter, include=None) -> Album:
+        """album: write-through for one album (UID `filter`; `include` = 'songs'
+        nests child song objects). The response is a single BARE object.
+
+        The album row plus any nested song rows — and HistoryEntity rows for
+        played songs only (null last_played maps to None and is dropped) — are
+        upserted in ONE transaction; the return value is read back from the DB
+        only. The nested `artist` slot is a partial reference: extracted onto
+        the album row as artistId/artistName, never upserted (INSERT OR
+        REPLACE would blank the artist row's real columns — see AlbumMapper)."""
+        params = self._listParams(filter=filter, include=include)
+        payload = self._sendWithAuth(ApiMethod.ALBUM, params)
+        albumRow = mapAlbum(payload)
+        songRows = [mapSong(song) for song in payload.get("tracks") or []]
+        historyRows = [
+            row for row in (mapHistory(song) for song in payload.get("tracks") or [])
+            if row is not None
+        ]
+        connection = self._database.connection
+        with connection:
+            if not connection.in_transaction:
+                connection.execute("BEGIN")  # transaction owner — see getArtist
+            self._albumRepository.upsertAlbums([albumRow])
+            self._songRepository.upsertSongs(songRows)
+            self._historyRepository.upsertHistories(historyRows)
+        album = self._albumRepository.getAlbum(albumRow["id"])
+        if album is None:
+            raise AmpacheError("album " + albumRow["id"] + " missing from DB after write-through")
+        return album
 
     def getSongs(self, filter="", exact=None, add=None, update=None, offset=None,
                  limit=None, cond=None, sort=None):
