@@ -170,9 +170,10 @@ class AmpacheClient:
     def getSong(self, filter) -> Song:
         """song: write-through for one song (UID `filter`).
 
-        The song row and its HistoryEntity row (playCount; lastPlayed as
-        epoch ms) are upserted in ONE transaction; the return value is read
-        back from the DB only."""
+        The song row — and, only when last_played is set, its HistoryEntity
+        row (playCount; lastPlayed as epoch ms; never-played songs write no
+        history row) — are upserted in ONE transaction; the return value is
+        read back from the DB only."""
         params = self._listParams(filter=filter)
         payload = self._sendWithAuth(ApiMethod.SONG, params)
         songRow = mapSong(payload)
