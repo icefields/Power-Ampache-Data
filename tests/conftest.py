@@ -67,6 +67,11 @@ def albumPayload():
 
 
 @pytest.fixture
+def artistAlbumsPayload():
+    return json.loads((EXAMPLES_DIR / "artist_albums.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
 def songPayload():
     return json.loads((EXAMPLES_DIR / "song.json").read_text(encoding="utf-8"))
 

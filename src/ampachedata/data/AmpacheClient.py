@@ -112,6 +112,24 @@ class AmpacheClient:
             raise AmpacheError("artist " + artistRow["id"] + " missing from DB after write-through")
         return artist
 
+    def getAlbumsFromArtist(self, artistId, albumArtist=None, offset=None, limit=None,
+                            cond=None, sort=None):
+        """artist_albums: write-through for the albums of one artist.
+
+        fetch -> map -> upsert (one transaction, owned by AlbumRepository)
+        -> read back from the DB only: WHERE artistId = ? ORDER BY year,
+        searchName. Envelope-only fields (total_count, md5) are not persisted;
+        reach them via lastPayload. See getAlbumsFromArtist's docstring on the
+        repository for the album_artist=0 read-back caveat."""
+        params = self._listParams(
+            filter=artistId, album_artist=albumArtist, offset=offset,
+            limit=limit, cond=cond, sort=sort,
+        )
+        payload = self._sendWithAuth(ApiMethod.ARTIST_ALBUMS, params)
+        rows = [mapAlbum(album) for album in payload.get("album") or []]
+        self._albumRepository.upsertAlbums(rows)
+        return self._albumRepository.getAlbumsFromArtist(artistId)
+
     def _listParams(self, **params):
         """Single place that builds list-method query params (filter/exact/offset/limit/
         cond/sort/...). None and empty-string values are omitted; everything is

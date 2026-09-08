@@ -14,6 +14,7 @@ from .data.errors import (
     UnknownApiError,
 )
 from .domain.Artist import Artist
+from .domain.Album import Album
 from .domain.Credentials import Credentials
 from .domain.PingResult import PingResult
 from .domain.Session import Session
@@ -21,6 +22,7 @@ from .domain.Session import Session
 __all__ = [
     "AmpacheClient",
     "Artist",
+    "Album",
     "Session",
     "Credentials",
     "PingResult",

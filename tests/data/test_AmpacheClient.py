@@ -195,3 +195,74 @@ def testGetArtistNotFoundMapsToNotFoundError(makeClient, seedCredentials, seedSe
     client, _ = makeClient([ERROR_4704])
     with pytest.raises(NotFoundError):
         client.getArtist("999")
+
+
+def testGetAlbumsFromArtistWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, seedSession, artistAlbumsPayload):
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([artistAlbumsPayload])
+    albums = client.getAlbumsFromArtist("14")
+    assert len(albums) == 1
+    album = albums[0]
+    assert album.id == "8"
+    assert album.name == "Nofi Devices"
+    assert album.artistId == "14"
+    assert album.artistName == "Nofi/found."
+    assert album.songCount == 11
+    assert json.loads(album.genre) == artistAlbumsPayload["album"][0]["genre"]
+    (request,) = transport.requests
+    assert request["params"]["action"] == "artist_albums"
+    assert request["params"]["filter"] == "14"
+    assert request["headers"]["Authorization"] == "Bearer " + HANDSHAKE_AUTH
+    assert "auth" not in request["params"]
+    # write-through: the row is in the DB, not just the return value
+    count = sqlite3.connect(dbPath).execute("SELECT COUNT(*) FROM AlbumEntity").fetchone()[0]
+    assert count == 1
+
+
+def testGetAlbumsFromArtistSendsListParams(makeClient, seedCredentials, seedSession, artistAlbumsPayload):
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([artistAlbumsPayload])
+    client.getAlbumsFromArtist("14", albumArtist=1, offset=10, limit=5, cond="year,2012", sort="name")
+    params = transport.requests[0]["params"]
+    assert params["filter"] == "14"
+    assert params["album_artist"] == "1"
+    assert params["offset"] == "10"
+    assert params["limit"] == "5"
+    assert params["cond"] == "year,2012"
+    assert params["sort"] == "name"
+
+
+def testGetAlbumsFromArtistReadBackIsDbDerived(dbPath, makeClient, seedCredentials, seedSession):
+    """Ordering comes from the DB (year, searchName), not response order.
+    Envelope-only fields stay on lastPayload, unpersisted."""
+    seedCredentials()
+    seedSession()
+    payload = {
+        "total_count": 3,
+        "md5": "abc",
+        "album": [
+            {"id": "1", "name": "Beta", "year": 2001, "artist": {"id": "14", "name": "Nofi/found."}},
+            {"id": "2", "name": "Alpha", "year": 2001, "artist": {"id": "14", "name": "Nofi/found."}},
+            {"id": "3", "name": "Gamma", "year": 1999, "artist": {"id": "14", "name": "Nofi/found."}},
+        ],
+    }
+    client, _ = makeClient([payload])
+    albums = client.getAlbumsFromArtist("14")
+    assert [a.name for a in albums] == ["Gamma", "Alpha", "Beta"]
+    assert client.lastPayload["total_count"] == 3
+
+
+def testGetAlbumsFromArtistSparseAlbumNoKeyError(dbPath, makeClient, seedCredentials, seedSession):
+    """A sparse album (explicit null artist, missing genre/art/...) flows
+    through the full write-through without KeyError."""
+    seedCredentials()
+    seedSession()
+    payload = {"album": [{"id": "42", "name": "Sparse (Demo)", "artist": None}]}
+    client, _ = makeClient([payload])
+    albums = client.getAlbumsFromArtist("")  # null artist -> artistId ""
+    assert len(albums) == 1
+    assert albums[0].id == "42"
+    assert albums[0].artists == "[]"
+    assert albums[0].artUrl == ""

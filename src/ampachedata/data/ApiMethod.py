@@ -7,3 +7,4 @@ class ApiMethod(str, Enum):
     PING = "ping"
     ARTISTS = "artists"
     ARTIST = "artist"
+    ARTIST_ALBUMS = "artist_albums"
