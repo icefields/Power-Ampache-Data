@@ -1,4 +1,6 @@
 """ping + re-auth flows through the fake transport. No network."""
+import sqlite3
+
 import pytest
 
 from ampachedata import InvalidHandshakeError, NotFoundError
@@ -105,3 +107,32 @@ def testHttp401TriggersReauthAndRetry(dbPath, makeClient, seedCredentials, seedS
     assert [r["params"]["action"] for r in transport.requests] == ["ping", "handshake", "ping"]
     session = SessionRepository(Database(dbPath)).getSession()
     assert session.auth == HANDSHAKE_AUTH
+
+
+def testGetArtistsWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, seedSession, artistsPayload):
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([artistsPayload])
+    artists = client.getArtists()
+    assert [a.name for a in artists] == ["CARNÚN", "Chi.Otic", "Comedown Kid", "Comfort Fit"]
+    (request,) = transport.requests
+    assert request["params"]["action"] == "artists"
+    assert request["headers"]["Authorization"] == "Bearer " + HANDSHAKE_AUTH
+    assert "auth" not in request["params"]
+    # write-through: rows are in the DB, not just the return value
+    count = sqlite3.connect(dbPath).execute("SELECT COUNT(*) FROM ArtistEntity").fetchone()[0]
+    assert count == 4
+
+
+def testGetArtistsSendsListParams(makeClient, seedCredentials, seedSession, artistsPayload):
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([artistsPayload])
+    client.getArtists(filter="comfort", exact=1, offset=10, limit=5, sort="name", cond="and")
+    params = transport.requests[0]["params"]
+    assert params["filter"] == "comfort"
+    assert params["exact"] == "1"
+    assert params["offset"] == "10"
+    assert params["limit"] == "5"
+    assert params["sort"] == "name"
+    assert params["cond"] == "and"

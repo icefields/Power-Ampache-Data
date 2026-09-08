@@ -13,12 +13,14 @@ from .data.errors import (
     NotFoundError,
     UnknownApiError,
 )
+from .domain.Artist import Artist
 from .domain.Credentials import Credentials
 from .domain.PingResult import PingResult
 from .domain.Session import Session
 
 __all__ = [
     "AmpacheClient",
+    "Artist",
     "Session",
     "Credentials",
     "PingResult",

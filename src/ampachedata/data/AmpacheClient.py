@@ -3,12 +3,15 @@
     fetch (Transport) -> map (mappers) -> upsert (repositories) -> read back (repositories)
 
 Repositories are SQL-only and never see HTTP; mappers never see SQL or domain."""
+from ..domain.Artist import Artist
 from ..domain.PingResult import PingResult
 from .ApiMethod import ApiMethod
 from .Transport import UrllibTransport
 from .auth.SessionManager import ENDPOINT_PATH, SessionManager
 from .db.Database import Database
+from .db.mappers.ArtistMapper import mapArtist
 from .db.mappers.SessionMapper import mapSession
+from .db.repositories.ArtistRepository import ArtistRepository
 from .db.repositories.CredentialsRepository import CredentialsRepository
 from .db.repositories.SessionRepository import SessionRepository
 from .errors import AmpacheError, InvalidHandshakeError, raiseForError
@@ -23,6 +26,7 @@ class AmpacheClient:
         self._sessionManager = SessionManager(
             self._transport, self._sessionRepository, self._credentialsRepository
         )
+        self._artistRepository = ArtistRepository(database)
 
     def ping(self) -> PingResult:
         """Health check / expiry probe.
@@ -51,6 +55,25 @@ class AmpacheClient:
         return PingResult(
             authenticated=True, auth=session.auth, sessionExpire=session.sessionExpire, api=session.api
         )
+
+    def getArtists(self, filter="", exact=None, add=None, update=None, include=None,
+                   albumArtist=None, offset=None, limit=None, cond=None, sort=None):
+        """Write-through: fetch -> upsert (one transaction) -> read back ALL artists
+        ordered by searchName. The return value comes only from the DB."""
+        params = self._listParams(
+            filter=filter, exact=exact, add=add, update=update, include=include,
+            album_artist=albumArtist, offset=offset, limit=limit, cond=cond, sort=sort,
+        )
+        payload = self._sendWithAuth(ApiMethod.ARTISTS, params)
+        rows = [mapArtist(artist) for artist in payload.get("artist") or []]
+        self._artistRepository.upsertArtists(rows)
+        return self._artistRepository.getArtists()
+
+    def _listParams(self, **params):
+        """Single place that builds list-method query params (filter/exact/offset/limit/
+        cond/sort/...). None and empty-string values are omitted; everything is
+        stringified for the query string. Default/max limit handling lives here."""
+        return {key: str(value) for key, value in params.items() if value is not None and value != ""}
 
     def _sendWithAuth(self, action, params):
         credentials = self._credentialsRepository.getCredentials()
