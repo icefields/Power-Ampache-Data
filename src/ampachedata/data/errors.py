@@ -10,6 +10,11 @@ class DatabaseError(AmpacheError):
     """musicdb.db missing or unusable. The library never creates or alters schema."""
 
 
+class CredentialValidationError(AmpacheError):
+    """Bootstrap input failed validation. Messages are static text — they never
+    contain the cleartext password or the stored hash."""
+
+
 class ApiError(AmpacheError):
     """An Ampache error envelope: {'error': {'code': ..., 'message': ...}}."""
 

@@ -71,9 +71,14 @@ shapes the tree from day one:
   `SHA256(password)` — that's the "KEY" in Ampache's handshake docs. (Not
   MD5, not cleartext.) The handshake passphrase is
   `SHA256(timestamp + <stored hash>)`, so re-auth needs ONLY what's in the
-  DB. The cleartext password must never be stored, logged, or requested
-  again. If setup ever receives a cleartext password: hash it immediately,
-  persist only the digest, discard the original.
+  DB. The cleartext password is never stored, never logged, never passed via
+  CLI argv, and never requested again after setup. The single exception
+  boundary is the bootstrap helper (`storeCredentialsFromPassword` /
+  `python -m ampachedata init-credentials`): it may accept cleartext
+  transiently in memory — via getpass, stdin, or env var only — hashes it
+  with SHA256 immediately, persists only the digest, and discards the
+  original. Everywhere else, including all re-auth, only the stored hash is
+  used.
 - `SessionEntity.auth` is the **session token** returned by the handshake
   (32-char hex) — NOT the password hash. Two different values in two
   different tables; never mix them up.
@@ -93,7 +98,7 @@ shapes the tree from day one:
   body — never the query string.** Query-string `auth` is deprecated in the
   spec (privacy: URLs get logged everywhere).
 - `ping` doubles as the health check / expiry probe.
-- Credentials NEVER in code or committed files. The DB is their home.
+- Credentials NEVER in code or committed files. The DB is their home; only the bootstrap helper may handle cleartext, and only transiently.
 
 ## Request Building
 
