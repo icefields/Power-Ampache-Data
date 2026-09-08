@@ -16,17 +16,12 @@ typed AmpacheError. Exit 0 only if all pass."""
 import shutil
 import sqlite3
 import sys
-import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ampachedata import AmpacheClient, AmpacheError
-from ampachedata.data.auth.SessionManager import SessionManager
-from ampachedata.data.db.Database import Database
 from ampachedata.data.db.mappers.SessionMapper import mapSession
-from ampachedata.data.db.repositories.CredentialsRepository import CredentialsRepository
-from ampachedata.data.db.repositories.SessionRepository import SessionRepository
 
 GARBAGE_TOKEN = "deadbeef" * 4
 EXPIRED = "2000-01-01T00:00:00+00:00"
