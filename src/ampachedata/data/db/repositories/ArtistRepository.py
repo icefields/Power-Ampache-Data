@@ -17,28 +17,20 @@ class ArtistRepository:
         self._database = database
 
     def upsertArtists(self, rows) -> None:
-        # One transaction for the whole list: all rows committed before any read-back.
+        # No transaction here on purpose — the caller owns the commit boundary.
         values = [[row[column] for column in _COLUMNS] for row in rows]
-        with self._database.connection:
-            self._database.connection.executemany(_UPSERT_SQL, values)
+        self._database.connection.executemany(_UPSERT_SQL, values)
 
     def getArtists(self):
         rows = self._database.connection.execute(
-            "SELECT id, name, albumCount, songCount, genre, artUrl, summary, time, "
-            "yearFormed, placeFormed FROM ArtistEntity ORDER BY searchName"
+            _SELECT_SQL + " ORDER BY searchName"
         ).fetchall()
-        return [
-            Artist(
-                id=row["id"],
-                name=row["name"],
-                albumCount=row["albumCount"],
-                songCount=row["songCount"],
-                genre=row["genre"],
-                artUrl=row["artUrl"],
-                summary=row["summary"],
-                time=row["time"],
-                yearFormed=row["yearFormed"],
-                placeFormed=row["placeFormed"],
-            )
-            for row in rows
-        ]
+        return [_toArtist(row) for row in rows]
+
+    def getArtist(self, artistId):
+        """Read-back for the write-through flow. None if the row is missing —
+        the client turns that into an AmpacheError."""
+        row = self._database.connection.execute(
+            _SELECT_SQL + " WHERE id = ?", (artistId,)
+        ).fetchone()
+        return _toArtist(row) if row is not None else None

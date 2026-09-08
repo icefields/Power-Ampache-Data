@@ -1,4 +1,5 @@
 """ping + re-auth flows through the fake transport. No network."""
+import json
 import sqlite3
 
 import pytest
@@ -136,3 +137,61 @@ def testGetArtistsSendsListParams(makeClient, seedCredentials, seedSession, arti
     assert params["limit"] == "5"
     assert params["sort"] == "name"
     assert params["cond"] == "and"
+
+
+def testGetArtistWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, seedSession, artistPayload):
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([artistPayload])
+    artist = client.getArtist("14")
+    assert artist.id == "14"
+    assert artist.name == "Nofi/found."
+    assert artist.albumCount == 1
+    assert artist.songCount == 11
+    assert json.loads(artist.genre) == artistPayload["genre"]
+    assert artist.artUrl == "https://music.com.au/images/blankalbum_128x128.png"
+    assert artist.time == 4423
+    (request,) = transport.requests
+    assert request["params"]["action"] == "artist"
+    assert request["params"]["filter"] == "14"
+    assert request["headers"]["Authorization"] == "Bearer " + HANDSHAKE_AUTH
+    assert "auth" not in request["params"]
+    # write-through: the row is in the DB, not just the return value
+    count = sqlite3.connect(dbPath).execute("SELECT COUNT(*) FROM ArtistEntity").fetchone()[0]
+    assert count == 1
+
+
+def testGetArtistIncludePersistsNestedRows(dbPath, makeClient, seedCredentials, seedSession,
+                                           artistPayload, albumPayload, songPayload):
+    """include=1: nested albums/songs are normalized into their own tables in the
+    same transaction. Partial references inside them (the album's bare {id, name}
+    artist; the song's artist/album/albumartist) are extracted onto their rows but
+    never upserted — ArtistEntity keeps exactly one row."""
+    seedCredentials()
+    seedSession()
+    artistPayload["albums"] = [albumPayload]
+    artistPayload["songs"] = [songPayload]
+    client, transport = makeClient([artistPayload])
+    artist = client.getArtist("14", include="albums,songs")
+    assert artist.id == "14"
+    assert transport.requests[0]["params"]["include"] == "albums,songs"
+    connection = sqlite3.connect(dbPath)
+    assert connection.execute("SELECT COUNT(*) FROM ArtistEntity").fetchone()[0] == 1
+    assert connection.execute("SELECT COUNT(*) FROM AlbumEntity").fetchone()[0] == 1
+    assert connection.execute("SELECT COUNT(*) FROM SongEntity").fetchone()[0] == 1
+    album = connection.execute("SELECT id, artistId, artistName FROM AlbumEntity").fetchone()
+    assert album[0] == "12"
+    assert album[1] == "19"  # partial reference extracted onto the row, not upserted
+    assert album[2] == "Various Artists"
+    song = connection.execute("SELECT mediaId, albumId, artistId FROM SongEntity").fetchone()
+    assert song[0] == "132"  # API id lands in mediaId — SongEntity's actual PK
+    assert song[1] == "21"
+    assert song[2] == "36"
+
+
+def testGetArtistNotFoundMapsToNotFoundError(makeClient, seedCredentials, seedSession):
+    seedCredentials()
+    seedSession()
+    client, _ = makeClient([ERROR_4704])
+    with pytest.raises(NotFoundError):
+        client.getArtist("999")
