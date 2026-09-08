@@ -10,6 +10,7 @@ script takes only the DB path, never a secret:
 Requires the package installed (pip install -e .); no sys.path hacks."""
 import sqlite3
 import sys
+from datetime import datetime, timezone
 
 from ampachedata import AmpacheClient
 
@@ -160,6 +161,75 @@ def main(argv):
             print("    sample album in DB: %s" % albumRows[0][0])
         results.append(("getAlbumsFromArtist returned rows", len(albums) > 0))
         results.append(("album rows present in DB for artist", len(albumRows) > 0))
+
+    # --- Step 4b: getSong + getSongs (narrow filter) ------------------------------
+    print("\n[4b] getSong + getSongs (narrow filter)")
+    if artist is None:
+        print("    skipped — no include-artist to pick songs from")
+        results.append(("getSong", False))
+        results.append(("getSongs", False))
+    else:
+        connection = sqlite3.connect(dbPath)
+        try:
+            songRow = connection.execute(
+                "SELECT mediaId, title FROM SongEntity WHERE artistId = ? LIMIT 1",
+                (artist.id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if songRow is None:
+            print("    skipped — include-artist has no song rows in the DB")
+            results.append(("getSong", False))
+            results.append(("getSongs", False))
+        else:
+            songId, songTitle = songRow
+            print("    picked song id %s (%s)" % (songId, songTitle))
+
+            # getSong: single fetch, write-through, read-back by mediaId.
+            song = client.getSong(songId)
+            print("    getSong: %s (mediaId %s)" % (song.title, song.id))
+            results.append(("getSong returned the requested song", song.id == songId))
+
+            # getSongs: NARROW on purpose — an exact title match keeps the
+            # pagination loop to one page. NEVER call it unfiltered here:
+            # that would paginate the entire server library.
+            songs = client.getSongs(filter=songTitle, exact=1)
+            totalCount = (client.lastPayload or {}).get("total_count")
+            print("    getSongs(filter=%r, exact=1): %d returned, envelope total_count: %s"
+                  % (songTitle, len(songs), totalCount))
+            if songs:
+                print("    first by searchTitle: %s (id %s)" % (songs[0].title, songs[0].id))
+                print("    last  by searchTitle: %s (id %s)" % (songs[-1].title, songs[-1].id))
+            results.append(("getSongs returned rows", len(songs) > 0))
+
+            # Presence-based verification, never count growth (pre-populated DB).
+            connection = sqlite3.connect(dbPath)
+            try:
+                persisted = connection.execute(
+                    "SELECT title FROM SongEntity WHERE mediaId = ?", (songId,)
+                ).fetchone()
+                historyRow = connection.execute(
+                    "SELECT id, playCount, lastPlayed FROM HistoryEntity WHERE mediaId = ?",
+                    (songId,),
+                ).fetchone()
+            finally:
+                connection.close()
+            print("    SongEntity row for mediaId %s: %s"
+                  % (songId, persisted[0] if persisted else "<missing>"))
+            results.append(
+                ("getSong persisted with matching title",
+                 persisted is not None and persisted[0] == songTitle)
+            )
+
+            # History: the epoch-ms conversion's first contact with real data.
+            # A null last_played legitimately means no row — both outcomes pass.
+            if historyRow is not None:
+                historyId, playCount, lastPlayed = historyRow
+                iso = datetime.fromtimestamp(lastPlayed / 1000, tz=timezone.utc).isoformat()
+                print("    HistoryEntity row: id=%s playCount=%d lastPlayed=%d (%s)"
+                      % (historyId, playCount, lastPlayed, iso))
+            else:
+                print("    no history row (null last_played)")
 
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
