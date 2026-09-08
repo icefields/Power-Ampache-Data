@@ -11,7 +11,7 @@ import os
 import sys
 
 from .data.Bootstrap import storeCredentialsFromKey, storeCredentialsFromPassword
-from .errors import AmpacheError, CredentialValidationError
+from .data.errors import AmpacheError, CredentialValidationError
 
 
 def main(argv=None) -> int:
