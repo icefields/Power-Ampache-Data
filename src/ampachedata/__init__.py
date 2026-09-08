@@ -16,13 +16,17 @@ from .data.errors import (
 from .domain.Artist import Artist
 from .domain.Album import Album
 from .domain.Credentials import Credentials
+from .domain.History import History
 from .domain.PingResult import PingResult
 from .domain.Session import Session
+from .domain.Song import Song
 
 __all__ = [
     "AmpacheClient",
     "Artist",
     "Album",
+    "Song",
+    "History",
     "Session",
     "Credentials",
     "PingResult",

@@ -8,3 +8,5 @@ class ApiMethod(str, Enum):
     ARTISTS = "artists"
     ARTIST = "artist"
     ARTIST_ALBUMS = "artist_albums"
+    SONGS = "songs"
+    SONG = "song"

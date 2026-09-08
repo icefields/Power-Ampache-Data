@@ -4,8 +4,8 @@ Dropped per Field Mapping (no SongEntity column — silent, by design):
 license, replaygain_album_gain, replaygain_album_peak, r128_album_gain,
 r128_track_gain (track replaygain IS stored).
 `last_played`/`playcount` also belong on HistoryEntity (lastPlayed as epoch
-ms); there is no HistoryRepository yet, so no history row is written —
-playcount fills SongEntity.playCount directly in the meantime.
+ms) — HistoryMapper builds that row and AmpacheClient upserts it alongside
+this one in the same transaction; playcount still fills SongEntity.playCount.
 Nested artist/album/albumartist are partial references: extracted onto this
 row (ids, names, mbids); the referenced rows themselves are skipped per the
 partial-reference rule. `genre`/`artists` arrays are stored verbatim as JSON

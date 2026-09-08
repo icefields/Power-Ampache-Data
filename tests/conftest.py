@@ -77,6 +77,11 @@ def songPayload():
 
 
 @pytest.fixture
+def songsPayload():
+    return json.loads((EXAMPLES_DIR / "songs.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
 def makeClient(dbPath):
     def factory(payloads):
         transport = FakeTransport(payloads)

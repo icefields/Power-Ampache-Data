@@ -5,17 +5,20 @@
 Repositories are SQL-only and never see HTTP; mappers never see SQL or domain."""
 from ..domain.Artist import Artist
 from ..domain.PingResult import PingResult
+from ..domain.Song import Song
 from .ApiMethod import ApiMethod
 from .Transport import UrllibTransport
 from .auth.SessionManager import ENDPOINT_PATH, SessionManager
 from .db.Database import Database
 from .db.mappers.AlbumMapper import mapAlbum
 from .db.mappers.ArtistMapper import mapArtist
+from .db.mappers.HistoryMapper import mapHistory
 from .db.mappers.SessionMapper import mapSession
 from .db.mappers.SongMapper import mapSong
 from .db.repositories.AlbumRepository import AlbumRepository
 from .db.repositories.ArtistRepository import ArtistRepository
 from .db.repositories.CredentialsRepository import CredentialsRepository
+from .db.repositories.HistoryRepository import HistoryRepository
 from .db.repositories.SessionRepository import SessionRepository
 from .db.repositories.SongRepository import SongRepository
 from .errors import AmpacheError, InvalidHandshakeError, raiseForError
@@ -33,6 +36,7 @@ class AmpacheClient:
         self._artistRepository = ArtistRepository(self._database)
         self._albumRepository = AlbumRepository(self._database)
         self._songRepository = SongRepository(self._database)
+        self._historyRepository = HistoryRepository(self._database)
         self._lastPayload = None
 
     @property
@@ -129,6 +133,54 @@ class AmpacheClient:
         rows = [mapAlbum(album) for album in payload.get("album") or []]
         self._albumRepository.upsertAlbums(rows)
         return self._albumRepository.getAlbumsFromArtist(artistId)
+
+    def getSongs(self, filter="", exact=None, add=None, update=None, offset=None,
+                 limit=None, cond=None, sort=None):
+        """songs: write-through for a song list.
+
+        fetch -> map (song rows + their HistoryEntity rows) -> upsert BOTH in
+        one transaction -> read back ALL songs ordered by searchTitle. The
+        return value comes only from the DB; envelope-only fields
+        (total_count, md5) are not persisted — reach them via lastPayload."""
+        params = self._listParams(
+            filter=filter, exact=exact, add=add, update=update,
+            offset=offset, limit=limit, cond=cond, sort=sort,
+        )
+        payload = self._sendWithAuth(ApiMethod.SONGS, params)
+        songs = payload.get("song") or []
+        songRows = [mapSong(song) for song in songs]
+        historyRows = [mapHistory(song) for song in songs]
+        connection = self._database.connection
+        with connection:
+            if not connection.in_transaction:
+                # BEGIN makes this with-block the transaction owner (see
+                # getArtist): song + history rows commit (or roll back) as
+                # ONE unit.
+                connection.execute("BEGIN")
+            self._songRepository.upsertSongs(songRows)
+            self._historyRepository.upsertHistories(historyRows)
+        return self._songRepository.getSongs()
+
+    def getSong(self, filter) -> Song:
+        """song: write-through for one song (UID `filter`).
+
+        The song row and its HistoryEntity row (playCount; lastPlayed as
+        epoch ms) are upserted in ONE transaction; the return value is read
+        back from the DB only."""
+        params = self._listParams(filter=filter)
+        payload = self._sendWithAuth(ApiMethod.SONG, params)
+        songRow = mapSong(payload)
+        historyRow = mapHistory(payload)
+        connection = self._database.connection
+        with connection:
+            if not connection.in_transaction:
+                connection.execute("BEGIN")  # transaction owner — see getArtist
+            self._songRepository.upsertSongs([songRow])
+            self._historyRepository.upsertHistories([historyRow])
+        song = self._songRepository.getSong(songRow["mediaId"])
+        if song is None:
+            raise AmpacheError("song " + songRow["mediaId"] + " missing from DB after write-through")
+        return song
 
     def _listParams(self, **params):
         """Single place that builds list-method query params (filter/exact/offset/limit/
