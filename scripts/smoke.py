@@ -103,8 +103,10 @@ def main(argv) -> int:
         connection.close()
         wrongClient = AmpacheClient(dbPath=wrongPath)
         try:
-            wrongClient.ping()
-            print("d. wrong key: FAIL  ping unexpectedly succeeded")
+            # Same entry point as check (a): no session row -> live handshake,
+            # which is the ONLY call that consumes the stored key.
+            wrongClient._sessionManager.ensureSession()
+            print("d. wrong key: FAIL  handshake unexpectedly succeeded")
             results.append(("d. wrong key raises typed AmpacheError", False))
         except AmpacheError as exc:
             print("d. wrong key: OK  raised " + type(exc).__name__)
