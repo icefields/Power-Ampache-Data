@@ -231,6 +231,50 @@ def main(argv):
             else:
                 print("    no history row (null last_played)")
 
+    # --- Step 4c: getAlbums (narrow filter) + getAlbum -----------------------------
+    print("\n[4c] getAlbums (narrow filter) + getAlbum")
+    if not albums:
+        print("    skipped — no album to pick")
+        results.append(("getAlbums", False))
+        results.append(("getAlbum", False))
+    else:
+        pickedAlbum = albums[0]
+        print("    picked album id %s (%s)" % (pickedAlbum.id, pickedAlbum.name))
+
+        # getAlbums: NARROW on purpose — an exact name match keeps the
+        # auto-pagination loop to a single page (short page < page limit).
+        # NEVER call it unfiltered here: that would paginate the entire
+        # server library.
+        filtered = client.getAlbums(filter=pickedAlbum.name, exact=1)
+        totalCount = (client.lastPayload or {}).get("total_count")
+        print("    getAlbums(filter=%r, exact=1): %d returned, envelope total_count: %s"
+              % (pickedAlbum.name, len(filtered), totalCount))
+        if filtered:
+            print("    first by (year, searchName): %s (%s, id %s)"
+                  % (filtered[0].name, filtered[0].year, filtered[0].id))
+        results.append(("getAlbums returned rows", len(filtered) > 0))
+
+        # getAlbum: single fetch, write-through, read-back by id.
+        album = client.getAlbum(pickedAlbum.id)
+        print("    getAlbum: %s (year %s, songCount %d)"
+              % (album.name, album.year, album.songCount))
+        results.append(("getAlbum returned the requested album", album.id == pickedAlbum.id))
+
+        # Presence-based verification, never count growth (pre-populated DB).
+        connection = sqlite3.connect(dbPath)
+        try:
+            persisted = connection.execute(
+                "SELECT name FROM AlbumEntity WHERE id = ?", (pickedAlbum.id,)
+            ).fetchone()
+        finally:
+            connection.close()
+        print("    AlbumEntity row for id %s: %s"
+              % (pickedAlbum.id, persisted[0] if persisted else "<missing>"))
+        results.append(
+            ("getAlbum persisted with matching name",
+             persisted is not None and persisted[0] == pickedAlbum.name)
+        )
+
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
     allOk = _report(results)
