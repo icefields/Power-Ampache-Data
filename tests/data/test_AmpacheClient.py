@@ -4,7 +4,7 @@ import sqlite3
 
 import pytest
 
-from ampachedata import InvalidHandshakeError, NotFoundError
+from ampachedata import AmpacheClient, InvalidHandshakeError, NotFoundError
 from ampachedata.data.db.Database import Database
 from ampachedata.data.db.repositories.SessionRepository import SessionRepository
 from ampachedata.data.errors import raiseForError
@@ -137,6 +137,27 @@ def testGetArtistsSendsListParams(makeClient, seedCredentials, seedSession, arti
     assert params["limit"] == "5"
     assert params["sort"] == "name"
     assert params["cond"] == "and"
+
+
+def testGetArtistsPaginatesUntilShortPage(dbPath, makeClient, seedCredentials, seedSession,
+                                          artistsPayload, monkeypatch):
+    """No offset/limit: _fetchAllPages keeps fetching pages of
+    _DEFAULT_PAGE_LIMIT rows until a SHORT page ends the loop (total_count
+    not yet reached). Rows from every page are persisted; the read-back
+    still comes only from the DB."""
+    seedCredentials()
+    seedSession()
+    monkeypatch.setattr(AmpacheClient, "_DEFAULT_PAGE_LIMIT", 2)
+    pageOne = {"total_count": 3, "artist": artistsPayload["artist"][:2]}
+    pageTwo = {"total_count": 3, "artist": artistsPayload["artist"][2:3]}
+    client, transport = makeClient([pageOne, pageTwo])
+    artists = client.getArtists()
+    assert [a.name for a in artists] == ["CARNÚN", "Chi.Otic", "Comedown Kid"]
+    assert [r["params"]["offset"] for r in transport.requests] == ["0", "2"]
+    assert [r["params"]["limit"] for r in transport.requests] == ["2", "2"]
+    # write-through: every page's rows are in the DB
+    count = sqlite3.connect(dbPath).execute("SELECT COUNT(*) FROM ArtistEntity").fetchone()[0]
+    assert count == 3
 
 
 def testGetArtistWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, seedSession, artistPayload):

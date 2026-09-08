@@ -25,6 +25,10 @@ from .errors import AmpacheError, InvalidHandshakeError, raiseForError
 
 
 class AmpacheClient:
+    # Page size for list-method pagination — the single place where default/
+    # maximum limit handling lives (CONVENTIONS: Request Building).
+    _DEFAULT_PAGE_LIMIT = 500
+
     def __init__(self, dbPath: str, transport=None):
         self._database = Database(dbPath)
         self._transport = transport if transport is not None else UrllibTransport()
@@ -83,8 +87,8 @@ class AmpacheClient:
             filter=filter, exact=exact, add=add, update=update, include=include,
             album_artist=albumArtist, offset=offset, limit=limit, cond=cond, sort=sort,
         )
-        payload = self._sendWithAuth(ApiMethod.ARTISTS, params)
-        rows = [mapArtist(artist) for artist in payload.get("artist") or []]
+        artists = self._fetchAllPages(ApiMethod.ARTISTS, params, "artist")
+        rows = [mapArtist(artist) for artist in artists]
         self._artistRepository.upsertArtists(rows)
         return self._artistRepository.getArtists()
 
@@ -129,8 +133,8 @@ class AmpacheClient:
             filter=artistId, album_artist=albumArtist, offset=offset,
             limit=limit, cond=cond, sort=sort,
         )
-        payload = self._sendWithAuth(ApiMethod.ARTIST_ALBUMS, params)
-        rows = [mapAlbum(album) for album in payload.get("album") or []]
+        albums = self._fetchAllPages(ApiMethod.ARTIST_ALBUMS, params, "album")
+        rows = [mapAlbum(album) for album in albums]
         self._albumRepository.upsertAlbums(rows)
         return self._albumRepository.getAlbumsFromArtist(artistId)
 
@@ -146,8 +150,7 @@ class AmpacheClient:
             filter=filter, exact=exact, add=add, update=update,
             offset=offset, limit=limit, cond=cond, sort=sort,
         )
-        payload = self._sendWithAuth(ApiMethod.SONGS, params)
-        songs = payload.get("song") or []
+        songs = self._fetchAllPages(ApiMethod.SONGS, params, "song")
         songRows = [mapSong(song) for song in songs]
         historyRows = [mapHistory(song) for song in songs]
         connection = self._database.connection
@@ -181,6 +184,38 @@ class AmpacheClient:
         if song is None:
             raise AmpacheError("song " + songRow["mediaId"] + " missing from DB after write-through")
         return song
+
+    def _fetchAllPages(self, action, params, listKey):
+        """The one place list-method pagination lives (CONVENTIONS: implement
+        pagination once, reuse everywhere).
+
+        Caller-specified offset/limit: the caller owns the window — the
+        request goes out verbatim, once, no auto-pagination.
+        No offset/limit: pages of _DEFAULT_PAGE_LIMIT rows are fetched until
+        a SHORT page arrives (len(rows) < page limit — the server is out of
+        rows; total_count is not trusted on its own) or until offset reaches
+        total_count. Rows from every page are collected BEFORE any DB write
+        so each list method's write-through stays ONE transaction — no
+        partial pages."""
+        if "offset" in params or "limit" in params:
+            payload = self._sendWithAuth(action, params)
+            return payload.get(listKey) or []
+        rows = []
+        offset = 0
+        while True:
+            pageParams = dict(params)
+            pageParams["offset"] = str(offset)
+            pageParams["limit"] = str(self._DEFAULT_PAGE_LIMIT)
+            payload = self._sendWithAuth(action, pageParams)
+            pageRows = payload.get(listKey) or []
+            rows.extend(pageRows)
+            offset += len(pageRows)
+            if len(pageRows) < self._DEFAULT_PAGE_LIMIT:
+                break
+            total = int(payload.get("total_count") or 0)
+            if total and offset >= total:
+                break
+        return rows
 
     def _listParams(self, **params):
         """Single place that builds list-method query params (filter/exact/offset/limit/

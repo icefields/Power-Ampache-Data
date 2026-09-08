@@ -7,7 +7,7 @@ import sqlite3
 
 import pytest
 
-from ampachedata import NotFoundError
+from ampachedata import AmpacheClient, NotFoundError
 from ampachedata.data.db.Database import Database
 from ampachedata.data.db.repositories.HistoryRepository import HistoryRepository
 
@@ -84,6 +84,26 @@ def testGetSongsReadBackIsDbDerived(dbPath, makeClient, seedCredentials, seedSes
     songs = client.getSongs()
     assert [s.title for s in songs] == ["Alpha", "Beta", "Gamma"]
     assert client.lastPayload["total_count"] == 3
+
+
+def testGetSongsPaginatesUntilTotalCount(dbPath, makeClient, seedCredentials, seedSession,
+                                         songsPayload, monkeypatch):
+    """No offset/limit: full pages keep fetching until offset reaches
+    total_count. Song + history rows from EVERY page land in the DB in one
+    transaction."""
+    seedCredentials()
+    seedSession()
+    monkeypatch.setattr(AmpacheClient, "_DEFAULT_PAGE_LIMIT", 2)
+    pageOne = {"total_count": 4, "song": songsPayload["song"][:2]}
+    pageTwo = {"total_count": 4, "song": songsPayload["song"][2:]}
+    client, transport = makeClient([pageOne, pageTwo])
+    songs = client.getSongs()
+    assert [s.id for s in songs] == ["115", "107", "118", "85"]
+    assert [r["params"]["offset"] for r in transport.requests] == ["0", "2"]
+    assert [r["params"]["limit"] for r in transport.requests] == ["2", "2"]
+    connection = sqlite3.connect(dbPath)
+    assert connection.execute("SELECT COUNT(*) FROM SongEntity").fetchone()[0] == 4
+    assert connection.execute("SELECT COUNT(*) FROM HistoryEntity").fetchone()[0] == 4
 
 
 def testGetSongWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, seedSession, songPayload):
