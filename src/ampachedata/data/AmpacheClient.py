@@ -142,7 +142,7 @@ class AmpacheClient:
                  limit=None, cond=None, sort=None):
         """songs: write-through for a song list.
 
-        fetch -> map (song rows + their HistoryEntity rows) -> upsert BOTH in
+        fetch -> map (song rows + HistoryEntity rows for played songs only; null last_played maps to None and is dropped) -> upsert BOTH in
         one transaction -> read back ALL songs ordered by searchTitle. The
         return value comes only from the DB; envelope-only fields
         (total_count, md5) are not persisted — reach them via lastPayload."""
@@ -152,7 +152,10 @@ class AmpacheClient:
         )
         songs = self._fetchAllPages(ApiMethod.SONGS, params, "song")
         songRows = [mapSong(song) for song in songs]
-        historyRows = [mapHistory(song) for song in songs]
+        # Never-played songs (null last_played) map to None — drop them so
+        # epoch-0 HistoryEntity rows are never written. upsertHistories([])
+        # is a no-op (executemany on an empty sequence), so no guard needed.
+        historyRows = [row for row in (mapHistory(song) for song in songs) if row is not None]
         connection = self._database.connection
         with connection:
             if not connection.in_transaction:
@@ -179,7 +182,9 @@ class AmpacheClient:
             if not connection.in_transaction:
                 connection.execute("BEGIN")  # transaction owner — see getArtist
             self._songRepository.upsertSongs([songRow])
-            self._historyRepository.upsertHistories([historyRow])
+            if historyRow is not None:
+                # None = never played (null last_played) — no history row.
+                self._historyRepository.upsertHistories([historyRow])
         song = self._songRepository.getSong(songRow["mediaId"])
         if song is None:
             raise AmpacheError("song " + songRow["mediaId"] + " missing from DB after write-through")

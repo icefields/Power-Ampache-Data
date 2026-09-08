@@ -1,7 +1,9 @@
 """songs/song write-through flows through the fake transport. No network.
 
-Every song payload also writes a HistoryEntity row (playCount; lastPlayed as
-epoch ms) in the same transaction as the SongEntity row."""
+A song with a real last_played also writes a HistoryEntity row (playCount;
+lastPlayed as epoch ms) in the same transaction as the SongEntity row.
+Never-played songs (null last_played) write NO history row — epoch-0 rows
+are never emitted."""
 import json
 import sqlite3
 
@@ -39,11 +41,8 @@ def testGetSongsWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, see
     # write-through: rows are in the DB, not just the return value
     connection = sqlite3.connect(dbPath)
     assert connection.execute("SELECT COUNT(*) FROM SongEntity").fetchone()[0] == 4
-    # every song also gets a HistoryEntity row (null last_played -> 0)
-    history = connection.execute(
-        "SELECT mediaId, playCount, lastPlayed FROM HistoryEntity ORDER BY mediaId"
-    ).fetchall()
-    assert history == [("107", 0, 0), ("115", 0, 0), ("118", 0, 0), ("85", 0, 0)]
+    # all fixture songs have null last_played -> never played -> NO history rows
+    assert connection.execute("SELECT COUNT(*) FROM HistoryEntity").fetchone()[0] == 0
 
 
 def testGetSongsSendsListParams(makeClient, seedCredentials, seedSession, songsPayload):
@@ -89,7 +88,7 @@ def testGetSongsReadBackIsDbDerived(dbPath, makeClient, seedCredentials, seedSes
 def testGetSongsPaginatesUntilTotalCount(dbPath, makeClient, seedCredentials, seedSession,
                                          songsPayload, monkeypatch):
     """No offset/limit: full pages keep fetching until offset reaches
-    total_count. Song + history rows from EVERY page land in the DB in one
+    total_count. Song rows from EVERY page land in the DB in one
     transaction."""
     seedCredentials()
     seedSession()
@@ -103,7 +102,8 @@ def testGetSongsPaginatesUntilTotalCount(dbPath, makeClient, seedCredentials, se
     assert [r["params"]["limit"] for r in transport.requests] == ["2", "2"]
     connection = sqlite3.connect(dbPath)
     assert connection.execute("SELECT COUNT(*) FROM SongEntity").fetchone()[0] == 4
-    assert connection.execute("SELECT COUNT(*) FROM HistoryEntity").fetchone()[0] == 4
+    # fixture songs are never played (null last_played) -> no history rows
+    assert connection.execute("SELECT COUNT(*) FROM HistoryEntity").fetchone()[0] == 0
 
 
 def testGetSongWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, seedSession, songPayload):
@@ -134,27 +134,21 @@ def testGetSongWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, seed
     # write-through: the row is in the DB, not just the return value
     connection = sqlite3.connect(dbPath)
     assert connection.execute("SELECT COUNT(*) FROM SongEntity").fetchone()[0] == 1
-    history = connection.execute(
-        "SELECT mediaId, playCount, lastPlayed FROM HistoryEntity"
-    ).fetchone()
-    assert history == ("132", 0, 0)  # null last_played -> 0
+    # null last_played -> never played -> NO HistoryEntity row
+    assert connection.execute("SELECT COUNT(*) FROM HistoryEntity").fetchone()[0] == 0
 
 
 def testGetSongHistoryRowFromLastPlayed(dbPath, makeClient, seedCredentials, seedSession, songPayload):
-    """last_played (ISO 8601) lands on HistoryEntity.lastPlayed as epoch
-    MILLISECONDS; play_count lands on playCount (and SongEntity.playCount)."""
+    """Fixture as-is (null last_played): the song was never played, so NO
+    HistoryEntity row is written — never an epoch-0 row."""
     seedCredentials()
     seedSession()
-    songPayload["playcount"] = 5
-    songPayload["last_played"] = "2026-01-01T00:00:00+00:00"
     client, _ = makeClient([songPayload])
-    song = client.getSong("132")
-    assert song.playCount == 5
-    history = sqlite3.connect(dbPath).execute(
+    client.getSong("132")
+    historyRows = sqlite3.connect(dbPath).execute(
         "SELECT mediaId, playCount, lastPlayed FROM HistoryEntity"
-    ).fetchone()
-    # known-good vector: 2026-01-01T00:00:00Z == 1767225600 s == 1767225600000 ms
-    assert history == ("132", 5, 1767225600000)
+    ).fetchall()
+    assert historyRows == []
 
 
 def testGetSongNotFoundMapsToNotFoundError(makeClient, seedCredentials, seedSession):
@@ -181,8 +175,8 @@ def testHistoryReadBackOrderedByLastPlayed(dbPath, makeClient, seedCredentials, 
     client, _ = makeClient([payload])
     client.getSongs()
     histories = HistoryRepository(Database(dbPath)).getHistories()
+    # "Never Played" (null last_played) writes no row at all
     assert [(h.mediaId, h.playCount, h.lastPlayed) for h in histories] == [
         ("2", 9, 1767225600000),
         ("1", 2, 1577836800000),
-        ("3", 0, 0),
     ]
