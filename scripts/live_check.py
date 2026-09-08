@@ -126,8 +126,39 @@ def main(argv):
             ("include-artist album/song rows present", albumRows > 0 or songRows > 0)
         )
 
-    # --- Step 4: verdict -----------------------------------------------------------
-    print("\n[4] results")
+    # --- Step 4: getAlbumsFromArtist ----------------------------------------------
+    print("\n[4] getAlbumsFromArtist(artistId)")
+    if artist is None:
+        print("    skipped — no include-artist to pick")
+        results.append(("getAlbumsFromArtist", False))
+    else:
+        picked = artist.id
+        print("    picked artist id %s (%s)" % (picked, artist.name))
+        albums = client.getAlbumsFromArtist(picked)
+        totalCount = (client.lastPayload or {}).get("total_count")
+        print("    returned: %d album(s), envelope total_count: %s" % (len(albums), totalCount))
+        if albums:
+            print("    first by (year, searchName): %s (%s, id %s)"
+                  % (albums[0].name, albums[0].year, albums[0].id))
+            print("    last  by (year, searchName): %s (%s, id %s)"
+                  % (albums[-1].name, albums[-1].year, albums[-1].id))
+        # Presence-based, NOT count growth: the scratch DB is pre-populated, so
+        # upserts of existing albums correctly leave the count unchanged.
+        connection = sqlite3.connect(dbPath)
+        try:
+            albumRows = connection.execute(
+                "SELECT name FROM AlbumEntity WHERE artistId = ?", (picked,)
+            ).fetchall()
+        finally:
+            connection.close()
+        print("    AlbumEntity rows with artistId=%s: %d" % (picked, len(albumRows)))
+        if albumRows:
+            print("    sample album in DB: %s" % albumRows[0][0])
+        results.append(("getAlbumsFromArtist returned rows", len(albums) > 0))
+        results.append(("album rows present in DB for artist", len(albumRows) > 0))
+
+    # --- Step 5: verdict -----------------------------------------------------------
+    print("\n[5] results")
     allOk = _report(results)
     print("\n" + ("PASS — all checks passed" if allOk else "FAIL — see above"))
     return 0 if allOk else 1
