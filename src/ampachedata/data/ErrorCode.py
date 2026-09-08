@@ -8,3 +8,6 @@ class ErrorCode(IntEnum):
     NOT_FOUND = 4704
     DEPRECATED = 4706
     BAD_REQUEST = 4710
+    # HTTP status surfaced as the error code when the server answers a failed
+    # handshake with HTTP 401 instead of a spec envelope. Not a spec code.
+    UNAUTHORIZED = 401

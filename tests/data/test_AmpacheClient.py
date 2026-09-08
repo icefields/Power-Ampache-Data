@@ -1,13 +1,15 @@
 """ping + re-auth flows through the fake transport. No network."""
 import pytest
 
-from ampachedata import NotFoundError
+from ampachedata import InvalidHandshakeError, NotFoundError
 from ampachedata.data.db.Database import Database
 from ampachedata.data.db.repositories.SessionRepository import SessionRepository
+from ampachedata.data.errors import raiseForError
 
 HANDSHAKE_AUTH = "0c45633f51b0e264a2260ebfa406e1ad"
 
 ANONYMOUS_PING = {"server": "Ampache", "version": "8.0.0", "compatible": "1", "api": "8.0.0"}
+ERROR_401 = {"error": {"code": 401, "message": "Unauthorized"}}
 ERROR_4701 = {"error": {"code": 4701, "message": "Invalid handshake"}}
 ERROR_4704 = {"error": {"code": 4704, "message": "Not found"}}
 
@@ -84,3 +86,22 @@ def testApiErrorMapsToTypedException(makeClient, seedCredentials, seedSession):
     client, _ = makeClient([ERROR_4704])
     with pytest.raises(NotFoundError):
         client.ping()
+
+
+def testHttp401MapsToInvalidHandshakeError():
+    """Direct mapping check: a 401-coded envelope raises InvalidHandshakeError."""
+    with pytest.raises(InvalidHandshakeError):
+        raiseForError(ERROR_401)
+
+
+def testHttp401TriggersReauthAndRetry(dbPath, makeClient, seedCredentials, seedSession, handshakePayload):
+    """Client-level: a 401 on an authenticated call behaves like 4701 —
+    silent re-auth from stored credentials, retry once."""
+    seedCredentials()
+    seedSession(auth="expiredtoken")
+    client, transport = makeClient([ERROR_401, handshakePayload, pingOk(handshakePayload)])
+    result = client.ping()
+    assert result.authenticated is True
+    assert [r["params"]["action"] for r in transport.requests] == ["ping", "handshake", "ping"]
+    session = SessionRepository(Database(dbPath)).getSession()
+    assert session.auth == HANDSHAKE_AUTH
