@@ -6,3 +6,4 @@ class ApiMethod(str, Enum):
     HANDSHAKE = "handshake"
     PING = "ping"
     ARTISTS = "artists"
+    ARTIST = "artist"

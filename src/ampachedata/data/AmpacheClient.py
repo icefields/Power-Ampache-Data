@@ -9,24 +9,30 @@ from .ApiMethod import ApiMethod
 from .Transport import UrllibTransport
 from .auth.SessionManager import ENDPOINT_PATH, SessionManager
 from .db.Database import Database
+from .db.mappers.AlbumMapper import mapAlbum
 from .db.mappers.ArtistMapper import mapArtist
 from .db.mappers.SessionMapper import mapSession
+from .db.mappers.SongMapper import mapSong
+from .db.repositories.AlbumRepository import AlbumRepository
 from .db.repositories.ArtistRepository import ArtistRepository
 from .db.repositories.CredentialsRepository import CredentialsRepository
 from .db.repositories.SessionRepository import SessionRepository
+from .db.repositories.SongRepository import SongRepository
 from .errors import AmpacheError, InvalidHandshakeError, raiseForError
 
 
 class AmpacheClient:
     def __init__(self, dbPath: str, transport=None):
-        database = Database(dbPath)
+        self._database = Database(dbPath)
         self._transport = transport if transport is not None else UrllibTransport()
-        self._credentialsRepository = CredentialsRepository(database)
-        self._sessionRepository = SessionRepository(database)
+        self._credentialsRepository = CredentialsRepository(self._database)
+        self._sessionRepository = SessionRepository(self._database)
         self._sessionManager = SessionManager(
             self._transport, self._sessionRepository, self._credentialsRepository
         )
-        self._artistRepository = ArtistRepository(database)
+        self._artistRepository = ArtistRepository(self._database)
+        self._albumRepository = AlbumRepository(self._database)
+        self._songRepository = SongRepository(self._database)
 
     def ping(self) -> PingResult:
         """Health check / expiry probe.
@@ -68,6 +74,34 @@ class AmpacheClient:
         rows = [mapArtist(artist) for artist in payload.get("artist") or []]
         self._artistRepository.upsertArtists(rows)
         return self._artistRepository.getArtists()
+
+    def getArtist(self, filter, include=None) -> Artist:
+        """Write-through for one artist (UID `filter`; `include` = 'albums'/'songs'
+        nests child objects). The artist row plus any nested album/song rows are
+        upserted in ONE transaction; the return value is read back from the DB
+        only. Partial references inside nested objects (bare {id, name}
+        artist/album slots) are extracted onto those rows but never upserted —
+        INSERT OR REPLACE would blank their real columns (see the mappers)."""
+        params = self._listParams(filter=filter, include=include)
+        payload = self._sendWithAuth(ApiMethod.ARTIST, params)
+        artistRow = mapArtist(payload)
+        albumRows = [mapAlbum(album) for album in payload.get("albums") or []]
+        songRows = [mapSong(song) for song in payload.get("songs") or []]
+        connection = self._database.connection
+        with connection:
+            if not connection.in_transaction:
+                # BEGIN marks this with-block as the transaction owner: the
+                # repositories see the open transaction and leave the commit
+                # to this block, so artist + nested rows commit (or roll
+                # back) as ONE unit.
+                connection.execute("BEGIN")
+            self._artistRepository.upsertArtists([artistRow])
+            self._albumRepository.upsertAlbums(albumRows)
+            self._songRepository.upsertSongs(songRows)
+        artist = self._artistRepository.getArtist(artistRow["id"])
+        if artist is None:
+            raise AmpacheError("artist " + artistRow["id"] + " missing from DB after write-through")
+        return artist
 
     def _listParams(self, **params):
         """Single place that builds list-method query params (filter/exact/offset/limit/

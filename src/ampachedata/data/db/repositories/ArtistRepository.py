@@ -1,4 +1,9 @@
-"""SQL-only access to ArtistEntity (PK id). Never sees HTTP."""
+"""SQL-only access to ArtistEntity (PK id). Never sees HTTP.
+
+Transaction semantics: upserts commit only when this call owns the transaction
+(none open on the connection). Inside a caller-owned transaction (AmpacheClient
+opens one with BEGIN for multi-repository write-throughs) the commit stays with
+the caller so all rows commit as ONE unit."""
 from ....domain.Artist import Artist
 
 _COLUMNS = (
@@ -37,9 +42,15 @@ class ArtistRepository:
         self._database = database
 
     def upsertArtists(self, rows) -> None:
-        # No transaction here on purpose — the caller owns the commit boundary.
+        # Commits only when this call owns the transaction (none open yet).
+        # Inside a caller-owned transaction the commit stays with the caller so
+        # multi-repository write-throughs commit (or roll back) as ONE unit.
         values = [[row[column] for column in _COLUMNS] for row in rows]
-        self._database.connection.executemany(_UPSERT_SQL, values)
+        connection = self._database.connection
+        ownsTransaction = not connection.in_transaction
+        connection.executemany(_UPSERT_SQL, values)
+        if ownsTransaction:
+            connection.commit()
 
     def getArtists(self):
         rows = self._database.connection.execute(
