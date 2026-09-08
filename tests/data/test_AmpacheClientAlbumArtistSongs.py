@@ -45,6 +45,23 @@ def testGetAlbumSongsWriteThroughAndReadBack(dbPath, makeClient, seedCredentials
     assert connection.execute(
         "SELECT mediaId, playCount, lastPlayed FROM HistoryEntity"
     ).fetchall() == [("110", 1, 1751342464000)]
+    # SEQUENCE-SENSITIVE: the expected order is derived from the fixture
+    # itself — disk first, then track number (the searchTitle tiebreak never
+    # engages: every fixture song is disk 1 with a unique track). Plain list
+    # == compares element by element, so any permutation fails. For this
+    # fixture the derivation yields:
+    #   "I wanna walk through the fire"  (disk 1, track 1)
+    #   "He is the Master of War"        (disk 1, track 2)
+    #   "Dance with the Devil"           (disk 1, track 3)
+    #   "Representin"                    (disk 1, track 4)
+    expectedTitles = [
+        fixtureSong["title"]
+        for fixtureSong in sorted(
+            albumSongsPayload["song"],
+            key=lambda fixtureSong: (fixtureSong["disk"], fixtureSong["track"]),
+        )
+    ]
+    assert [song.title for song in songs] == expectedTitles
 
 
 def testGetAlbumSongsSendsListParams(makeClient, seedCredentials, seedSession, albumSongsPayload):
