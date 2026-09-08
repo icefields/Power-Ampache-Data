@@ -69,7 +69,6 @@ def main(argv):
         print("    skipped — no artist to pick")
         results.append(("getArtist include", False))
         artist = None
-        albumsAdded = songsAdded = 0
     else:
         picked = artists[0].id
         print("    picked artist id %s" % picked)
@@ -86,8 +85,26 @@ def main(argv):
     print("\n[3] write-through verification (direct DB reads)")
     after = _counts(dbPath)
     print("    row counts after: " + str(after))
-    print("    ArtistEntity: %+d row(s)" % (after["ArtistEntity"] - before["ArtistEntity"]))
-    results.append(("artist rows written", after["ArtistEntity"] > before["ArtistEntity"]))
+    # The scratch DB is pre-populated: upserts of existing artists correctly leave
+    # the ArtistEntity count unchanged, so presence — not count growth — is the check.
+    sample = artists[:3] + artists[-2:] if len(artists) > 5 else artists
+    sampleIds = [a.id for a in sample]
+    connection = sqlite3.connect(dbPath)
+    try:
+        found = {
+            row[0]
+            for row in connection.execute(
+                "SELECT id FROM ArtistEntity WHERE id IN (%s)"
+                % ",".join("?" * len(sampleIds)),
+                sampleIds,
+            )
+        } if sampleIds else set()
+    finally:
+        connection.close()
+    missing = [a.id for a in sample if a.id not in found]
+    print("    sampled %d artist id(s): %s" % (len(sampleIds), ", ".join(sampleIds) or "<none>"))
+    print("    missing from ArtistEntity: %s" % (", ".join(missing) if missing else "none"))
+    results.append(("fetched artists present in DB", bool(sampleIds) and not missing))
     if artist is not None:
         connection = sqlite3.connect(dbPath)
         try:
