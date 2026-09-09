@@ -19,7 +19,7 @@ from ampachedata import AmpacheClient, InvalidHandshakeError
 from ampachedata.data.db.Database import Database
 from ampachedata.data.db.repositories.SessionRepository import SessionRepository
 
-USAGE = "usage: python scripts/live_check.py <path-to-musicdb.db>"
+USAGE = "usage: python scripts/live_check.py [--keep-session] <path-to-musicdb.db>"
 ARTIST_LIMIT = 50
 READ_CAP = 200 * 1024  # ~200KB — abort body reads past this
 _TABLES = ("ArtistEntity", "AlbumEntity", "SongEntity", "HistoryEntity")
@@ -87,10 +87,13 @@ def _report(results):
 
 
 def main(argv):
-    if len(argv) != 2:
+    args = argv[1:]
+    keepSession = "--keep-session" in args
+    args = [arg for arg in args if arg != "--keep-session"]
+    if len(args) != 1:
         print(USAGE)
         return 2
-    dbPath = argv[1]
+    dbPath = args[0]
     results = []
 
     before = _counts(dbPath)
@@ -704,8 +707,9 @@ def main(argv):
 
     # --- Step 5: media URLs — getStreamUrl / getDownloadUrl + live fetch ---------
     # Placed BEFORE goodbye: the URLs embed the live session token, which step 6
-    # destroys. The library only BUILDS these URLs (no network call, no DB write)
-    # — the GETs below are the script's own verification, not library calls.
+    # destroys (unless --keep-session is passed). The library only BUILDS these
+    # URLs (no network call, no DB write) — the GETs below are the script's own
+    # verification, not library calls.
     print("\n[5] media URLs — getStreamUrl / getDownloadUrl + live fetch")
     # Any persisted song works: it is previously fetched data (write-through),
     # and both URL kinds are rebuilt fresh with the LIVE token below — the
@@ -735,6 +739,14 @@ def main(argv):
         streamConstructed = _checkMediaUrl(streamUrl, "stream", liveToken, mediaSongId)
         downloadConstructed = _checkMediaUrl(downloadUrl, "download", liveToken, mediaSongId)
 
+        # Full URLs for immediate manual player testing — printed BEFORE the
+        # fetches and flushed so they are on screen at once (the fetches can
+        # be slow). The embedded token is this live session's: it dies with
+        # goodbye in step 6 unless --keep-session was passed — either way the
+        # URLs are for immediate manual use only.
+        print("    MPV TEST STREAM URL: " + streamUrl, flush=True)
+        print("    MPV TEST DOWNLOAD URL: " + downloadUrl, flush=True)
+
         streamOk, status, contentType, byteCount = _fetchRange(streamUrl)
         print("    GET stream URL (Range: bytes=0-1024): HTTP %s, Content-Type: %s, "
               "%d byte(s) read (cap %d)" % (status, contentType, byteCount, READ_CAP))
@@ -762,53 +774,55 @@ def main(argv):
               "%d byte(s) read (cap %d)" % (status, contentType, byteCount, READ_CAP))
         results.append(("/play/ fallback fetchable with live token", fallbackOk))
 
-        # Full URLs for immediate manual player testing. The embedded token is
-        # this live session's and dies with goodbye in step 6 — expected; they
-        # are for immediate manual use only.
-        print("    MPV TEST STREAM URL: " + streamUrl)
-        print("    MPV TEST DOWNLOAD URL: " + downloadUrl)
-
     # --- Step 6: goodbye — session teardown --------------------------------------
     # Placed LAST: it destroys the session, so nothing after it may need auth.
-    print("\n[6] goodbye — session teardown")
-    goodbyeOk = False
-    pingReportsUnauthenticated = False
-    authenticatedCallRaises = False
-    try:
-        goodbyeResult = client.goodbye()
-        goodbyeOk = goodbyeResult.success
-        print("    goodbye: success=%s message=%s" % (goodbyeResult.success, goodbyeResult.message))
-    except Exception as error:
-        print("    goodbye raised: %s" % error)
-
-    # ping after teardown: no session row remains, so ping takes its anonymous
-    # path and reports authenticated=False (it does not raise).
-    try:
-        pingAfter = client.ping()
-        pingReportsUnauthenticated = not pingAfter.authenticated
-        print("    ping after goodbye: authenticated=%s" % pingAfter.authenticated)
-    except Exception as error:
-        print("    ping after goodbye raised unexpectedly: %s" % error)
-
-    # An AUTHENTICATED call after goodbye must fail with the auth error — no
-    # silent re-handshake on this client instance.
-    try:
-        client.getArtists(limit=1)
-        print("    getArtists after goodbye returned — silent re-handshake happened!")
-    except InvalidHandshakeError as error:
-        authenticatedCallRaises = True
-        print("    getArtists after goodbye raised InvalidHandshakeError: %s" % error)
-    except Exception as error:
-        print("    getArtists after goodbye raised the wrong error: %r" % error)
-
-    sessionGone = SessionRepository(Database(dbPath)).getSession() is None
-    print("    SessionEntity row after goodbye: %s" % ("<deleted>" if sessionGone else "STILL PRESENT"))
-    if goodbyeOk and pingReportsUnauthenticated and authenticatedCallRaises and sessionGone:
-        print("PASS goodbye destroyed session")
+    # --keep-session skips it entirely: the session (and the MPV TEST URLs
+    # printed in step 5) stays alive for manual player testing.
+    if keepSession:
+        print("\n[6] goodbye — SKIPPED (--keep-session)")
+        print("    session left alive for manual player testing — the MPV TEST URLs above")
+        print("    keep working until the session expires server-side. Run without")
+        print("    --keep-session to tear it down.")
     else:
-        print("FAIL goodbye destroyed session")
-    results.append(("goodbye destroyed session",
-                    goodbyeOk and pingReportsUnauthenticated and authenticatedCallRaises and sessionGone))
+        print("\n[6] goodbye — session teardown")
+        goodbyeOk = False
+        pingReportsUnauthenticated = False
+        authenticatedCallRaises = False
+        try:
+            goodbyeResult = client.goodbye()
+            goodbyeOk = goodbyeResult.success
+            print("    goodbye: success=%s message=%s" % (goodbyeResult.success, goodbyeResult.message))
+        except Exception as error:
+            print("    goodbye raised: %s" % error)
+
+        # ping after teardown: no session row remains, so ping takes its anonymous
+        # path and reports authenticated=False (it does not raise).
+        try:
+            pingAfter = client.ping()
+            pingReportsUnauthenticated = not pingAfter.authenticated
+            print("    ping after goodbye: authenticated=%s" % pingAfter.authenticated)
+        except Exception as error:
+            print("    ping after goodbye raised unexpectedly: %s" % error)
+
+        # An AUTHENTICATED call after goodbye must fail with the auth error — no
+        # silent re-handshake on this client instance.
+        try:
+            client.getArtists(limit=1)
+            print("    getArtists after goodbye returned — silent re-handshake happened!")
+        except InvalidHandshakeError as error:
+            authenticatedCallRaises = True
+            print("    getArtists after goodbye raised InvalidHandshakeError: %s" % error)
+        except Exception as error:
+            print("    getArtists after goodbye raised the wrong error: %r" % error)
+
+        sessionGone = SessionRepository(Database(dbPath)).getSession() is None
+        print("    SessionEntity row after goodbye: %s" % ("<deleted>" if sessionGone else "STILL PRESENT"))
+        if goodbyeOk and pingReportsUnauthenticated and authenticatedCallRaises and sessionGone:
+            print("PASS goodbye destroyed session")
+        else:
+            print("FAIL goodbye destroyed session")
+        results.append(("goodbye destroyed session",
+                        goodbyeOk and pingReportsUnauthenticated and authenticatedCallRaises and sessionGone))
 
     # --- Step 7: verdict -----------------------------------------------------------
     print("\n[7] results")
