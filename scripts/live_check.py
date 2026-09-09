@@ -11,6 +11,9 @@ Requires the package installed (pip install -e .); no sys.path hacks."""
 import sqlite3
 import sys
 from datetime import datetime, timezone
+import urllib.error
+import urllib.request
+from urllib.parse import urlencode, urlsplit
 
 from ampachedata import AmpacheClient, InvalidHandshakeError
 from ampachedata.data.db.Database import Database
@@ -18,6 +21,7 @@ from ampachedata.data.db.repositories.SessionRepository import SessionRepository
 
 USAGE = "usage: python scripts/live_check.py <path-to-musicdb.db>"
 ARTIST_LIMIT = 50
+READ_CAP = 200 * 1024  # ~200KB — abort body reads past this
 _TABLES = ("ArtistEntity", "AlbumEntity", "SongEntity", "HistoryEntity")
 
 
@@ -41,6 +45,37 @@ def _historyIds(dbPath):
         }
     finally:
         connection.close()
+
+
+def _fetchRange(url):
+    """GET url with 'Range: bytes=0-1024'. Returns (ok, status, contentType,
+    bytesReceived); ok means HTTP 200 or 206. Reads at most READ_CAP bytes then
+    closes — a 200 response ignores Range and streams the whole file, so the
+    cap is what aborts the body instead of downloading it."""
+    request = urllib.request.Request(url, headers={"Range": "bytes=0-1024"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            status = response.status
+            contentType = response.headers.get("Content-Type") or "<none>"
+            data = response.read(READ_CAP)
+            return status in (200, 206), status, contentType, len(data)
+    except urllib.error.HTTPError as error:
+        return False, error.code, error.headers.get("Content-Type") or "<none>", 0
+    except Exception as error:
+        print("    fetch failed: %r" % (error,))
+        return False, 0, "<none>", 0
+
+
+def _checkMediaUrl(url, action, liveToken, songId):
+    """Printed string assertions: the URL must carry these exact fragments.
+    Returns True only if every one is present."""
+    allOk = True
+    for fragment in ("action=" + action, liveToken, "filter=" + songId, "type=song", "stats=0"):
+        ok = fragment in url
+        allOk = allOk and ok
+        label = "auth=<live token>" if fragment == liveToken else fragment
+        print("    %s URL contains %-22s %s" % (action, label, "yes" if ok else "NO"))
+    return allOk
 
 
 def _report(results):
@@ -666,6 +701,72 @@ def main(argv):
           % (", ".join(sorted(unsourced)) if unsourced else "none"))
     results.append(("playlist history writes all sourced from payload play data",
                     not unsourced))
+
+    # --- Step 5: media URLs — getStreamUrl / getDownloadUrl + live fetch ---------
+    # Placed BEFORE goodbye: the URLs embed the live session token, which step 6
+    # destroys. The library only BUILDS these URLs (no network call, no DB write)
+    # — the GETs below are the script's own verification, not library calls.
+    print("\n[5] media URLs — getStreamUrl / getDownloadUrl + live fetch")
+    # Any persisted song works: it is previously fetched data (write-through),
+    # and both URL kinds are rebuilt fresh with the LIVE token below — the
+    # stored songUrl's own ssid is stale and gets discarded.
+    connection = sqlite3.connect(dbPath)
+    try:
+        mediaRow = connection.execute(
+            "SELECT mediaId, title, songUrl FROM SongEntity "
+            "WHERE songUrl IS NOT NULL AND songUrl != '' LIMIT 1"
+        ).fetchone()
+    finally:
+        connection.close()
+    session = SessionRepository(Database(dbPath)).getSession()
+    if mediaRow is None or session is None or not session.auth:
+        print("    skipped — no song with a songUrl in the DB, or no live session")
+        results.append(("stream URL constructed+fetchable", False))
+        results.append(("download URL constructed+fetchable", False))
+        results.append(("/play/ fallback fetchable with live token", False))
+    else:
+        mediaSongId, mediaSongTitle, songUrl = mediaRow
+        liveToken = session.auth
+        print("    picked song id %s (%s)" % (mediaSongId, mediaSongTitle))
+
+        # PRIMARY: pure URL construction by the library (no network, no DB).
+        streamUrl = client.getStreamUrl(mediaSongId, stats=0)
+        downloadUrl = client.getDownloadUrl(mediaSongId, stats=0)
+        streamConstructed = _checkMediaUrl(streamUrl, "stream", liveToken, mediaSongId)
+        downloadConstructed = _checkMediaUrl(downloadUrl, "download", liveToken, mediaSongId)
+
+        streamOk, status, contentType, byteCount = _fetchRange(streamUrl)
+        print("    GET stream URL (Range: bytes=0-1024): HTTP %s, Content-Type: %s, "
+              "%d byte(s) read (cap %d)" % (status, contentType, byteCount, READ_CAP))
+        results.append(("stream URL constructed+fetchable", streamConstructed and streamOk))
+
+        downloadOk, status, contentType, byteCount = _fetchRange(downloadUrl)
+        print("    GET download URL (Range: bytes=0-1024): HTTP %s, Content-Type: %s, "
+              "%d byte(s) read (cap %d)" % (status, contentType, byteCount, READ_CAP))
+        results.append(("download URL constructed+fetchable", downloadConstructed and downloadOk))
+
+        # FALLBACK: the legacy /play/ web-player endpoint persisted as songUrl.
+        # Keep scheme + host + path, rebuild the query with the LIVE token as
+        # ssid (the stored query's own ssid/uid/bitrate/player params are
+        # dropped). NOTE: stats suppression is unknown on this endpoint — this
+        # test hit may record a play.
+        parts = urlsplit(songUrl)
+        fallbackUrl = ("%s://%s%s?" % (parts.scheme, parts.netloc, parts.path)) + urlencode(
+            {"ssid": liveToken, "type": "song", "oid": mediaSongId}
+        )
+        print("    fallback /play/ endpoint: %s://%s%s (query rebuilt: ssid=<live token>, "
+              "type=song, oid=%s)" % (parts.scheme, parts.netloc, parts.path, mediaSongId))
+        print("    NOTE: stats suppression unknown on /play/ — this hit may record a play")
+        fallbackOk, status, contentType, byteCount = _fetchRange(fallbackUrl)
+        print("    GET /play/ fallback (Range: bytes=0-1024): HTTP %s, Content-Type: %s, "
+              "%d byte(s) read (cap %d)" % (status, contentType, byteCount, READ_CAP))
+        results.append(("/play/ fallback fetchable with live token", fallbackOk))
+
+        # Full URLs for immediate manual player testing. The embedded token is
+        # this live session's and dies with goodbye in step 6 — expected; they
+        # are for immediate manual use only.
+        print("    MPV TEST STREAM URL: " + streamUrl)
+        print("    MPV TEST DOWNLOAD URL: " + downloadUrl)
 
     # --- Step 6: goodbye — session teardown --------------------------------------
     # Placed LAST: it destroys the session, so nothing after it may need auth.
