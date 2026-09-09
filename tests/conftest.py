@@ -97,6 +97,21 @@ def artistSongsPayload():
 
 
 @pytest.fixture
+def playlistsPayload():
+    return json.loads((EXAMPLES_DIR / "playlists.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def playlistPayload():
+    return json.loads((EXAMPLES_DIR / "playlist.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def playlistSongsPayload():
+    return json.loads((EXAMPLES_DIR / "playlist_songs.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
 def statsSongPayload():
     return json.loads((EXAMPLES_DIR / "stats_song.json").read_text(encoding="utf-8"))
 

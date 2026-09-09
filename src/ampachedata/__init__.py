@@ -18,6 +18,8 @@ from .domain.Album import Album
 from .domain.Credentials import Credentials
 from .domain.History import History
 from .domain.PingResult import PingResult
+from .domain.Playlist import Playlist
+from .domain.PlaylistSong import PlaylistSong
 from .domain.Session import Session
 from .domain.Song import Song
 
@@ -26,6 +28,8 @@ __all__ = [
     "Artist",
     "Album",
     "Song",
+    "Playlist",
+    "PlaylistSong",
     "History",
     "Session",
     "Credentials",

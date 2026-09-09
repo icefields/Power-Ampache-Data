@@ -6,6 +6,7 @@ Repositories are SQL-only and never see HTTP; mappers never see SQL or domain.""
 from ..domain.Album import Album
 from ..domain.Artist import Artist
 from ..domain.PingResult import PingResult
+from ..domain.Playlist import Playlist
 from ..domain.Song import Song
 from .ApiMethod import ApiMethod
 from .StatsFilter import StatsFilter
@@ -15,12 +16,16 @@ from .db.Database import Database
 from .db.mappers.AlbumMapper import mapAlbum
 from .db.mappers.ArtistMapper import mapArtist
 from .db.mappers.HistoryMapper import mapHistory
+from .db.mappers.PlaylistMapper import mapPlaylist
+from .db.mappers.PlaylistSongMapper import mapPlaylistSong
 from .db.mappers.SessionMapper import mapSession
 from .db.mappers.SongMapper import mapSong
 from .db.repositories.AlbumRepository import AlbumRepository
 from .db.repositories.ArtistRepository import ArtistRepository
 from .db.repositories.CredentialsRepository import CredentialsRepository
 from .db.repositories.HistoryRepository import HistoryRepository
+from .db.repositories.PlaylistRepository import PlaylistRepository
+from .db.repositories.PlaylistSongRepository import PlaylistSongRepository
 from .db.repositories.SessionRepository import SessionRepository
 from .db.repositories.SongRepository import SongRepository
 from .errors import AmpacheError, InvalidHandshakeError, raiseForError
@@ -43,6 +48,8 @@ class AmpacheClient:
         self._albumRepository = AlbumRepository(self._database)
         self._songRepository = SongRepository(self._database)
         self._historyRepository = HistoryRepository(self._database)
+        self._playlistRepository = PlaylistRepository(self._database)
+        self._playlistSongRepository = PlaylistSongRepository(self._database)
         self._lastPayload = None
 
     @property
@@ -488,6 +495,77 @@ class AmpacheClient:
         rows = [mapAlbum(album) for album in albums]
         self._albumRepository.upsertAlbums(rows)
         return albums
+
+    def getPlaylists(self, filter="", hideSearch=None, showDupes=None, exact=None,
+                     add=None, update=None, offset=None, limit=None, cond=None,
+                     sort=None):
+        """playlists: write-through for a playlist list.
+
+        fetch -> map -> upsert (one transaction, owned by PlaylistRepository)
+        -> read back ALL playlists ordered by (name, id). The return value
+        comes only from the DB; envelope-only fields (total_count, md5) are
+        not persisted — reach them via lastPayload. The `user` summary object
+        on each entry is a partial reference and is never upserted into
+        UserEntity (see PlaylistMapper)."""
+        params = self._listParams(
+            filter=filter, hide_search=hideSearch, show_dupes=showDupes,
+            exact=exact, add=add, update=update, offset=offset, limit=limit,
+            cond=cond, sort=sort,
+        )
+        playlists = self._fetchAllPages(ApiMethod.PLAYLISTS, params, "playlist")
+        rows = [mapPlaylist(playlist) for playlist in playlists]
+        self._playlistRepository.upsertPlaylists(rows)
+        return self._playlistRepository.getPlaylists()
+
+    def getPlaylist(self, filter) -> Playlist:
+        """playlist: write-through for one playlist (UID `filter`). The
+        response is a single BARE object.
+
+        The playlist row is upserted (single repository — PlaylistRepository
+        owns the commit, no explicit BEGIN); the return value is read back
+        from the DB only."""
+        params = self._listParams(filter=filter)
+        payload = self._sendWithAuth(ApiMethod.PLAYLIST, params)
+        playlistRow = mapPlaylist(payload)
+        self._playlistRepository.upsertPlaylists([playlistRow])
+        playlist = self._playlistRepository.getPlaylist(playlistRow["id"])
+        if playlist is None:
+            raise AmpacheError(
+                "playlist " + playlistRow["id"] + " missing from DB after write-through"
+            )
+        return playlist
+
+    def getSongsFromPlaylist(self, playlistId, random=None, offset=None, limit=None):
+        """playlist_songs: write-through for the songs of one playlist.
+
+        fetch -> map (song rows + PlaylistSongEntity join rows + HistoryEntity
+        rows for played songs only; null last_played maps to None and is
+        dropped) -> upsert ALL THREE in one transaction -> read back from the
+        DB only: the playlist's songs ordered by PlaylistSongEntity.position.
+
+        POSITION IS THE ORDERING CONTRACT: each entry's `playlisttrack` is
+        stored verbatim as position — never renumbered, never sorted — and
+        the read-back orders by it. Join-row ids are synthesized as
+        "{playlistId}:{songId}" (see PlaylistSongMapper), so re-fetching
+        refreshes positions in place; a song REMOVED from the playlist keeps
+        its stale join row (upsert-only, no deletion) and still appears in
+        the read-back. Envelope-only fields (total_count, md5) are not
+        persisted — reach them via lastPayload."""
+        params = self._listParams(
+            filter=playlistId, random=random, offset=offset, limit=limit,
+        )
+        songs = self._fetchAllPages(ApiMethod.PLAYLIST_SONGS, params, "song")
+        songRows = [mapSong(song) for song in songs]
+        historyRows = [row for row in (mapHistory(song) for song in songs) if row is not None]
+        playlistSongRows = [mapPlaylistSong(song, playlistId) for song in songs]
+        connection = self._database.connection
+        with connection:
+            if not connection.in_transaction:
+                connection.execute("BEGIN")  # transaction owner — see getArtist
+            self._songRepository.upsertSongs(songRows)
+            self._historyRepository.upsertHistories(historyRows)
+            self._playlistSongRepository.upsertPlaylistSongs(playlistSongRows)
+        return self._songRepository.getPlaylistSongs(playlistId)
 
     def _fetchAllPages(self, action, params, listKey):
         """The one place list-method pagination lives (CONVENTIONS: implement

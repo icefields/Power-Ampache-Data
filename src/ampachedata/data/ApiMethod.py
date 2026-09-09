@@ -14,4 +14,7 @@ class ApiMethod(str, Enum):
     ALBUM_SONGS = "album_songs"
     SONGS = "songs"
     SONG = "song"
+    PLAYLISTS = "playlists"
+    PLAYLIST = "playlist"
+    PLAYLIST_SONGS = "playlist_songs"
     STATS = "stats"

@@ -135,6 +135,23 @@ class SongRepository:
         ).fetchall()
         return [_toSong(row) for row in rows]
 
+    def getPlaylistSongs(self, playlistId):
+        """Read-back for the playlist_songs write-through: the playlist's
+        songs ordered by PlaylistSongEntity.position ASC — the ordering
+        contract, exactly as the payload's playlisttrack gave it — then
+        songId for a stable order among ties. Songs removed from the
+        playlist keep their join row (upsert-only, no deletion) and still
+        appear here."""
+        rows = self._database.connection.execute(
+            "SELECT song.* FROM SongEntity song "
+            "JOIN PlaylistSongEntity playlistSong "
+            "ON playlistSong.songId = song.mediaId "
+            "WHERE playlistSong.playlistId = ? "
+            "ORDER BY playlistSong.position, playlistSong.songId",
+            (playlistId,),
+        ).fetchall()
+        return [_toSong(row) for row in rows]
+
     def getSongsByLastPlayed(self, ascending=False):
         """Read-back for the stats recent/forgotten write-throughs: songs with
         play history ordered by HistoryEntity.lastPlayed — DESC (default) =
