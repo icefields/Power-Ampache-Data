@@ -505,6 +505,166 @@ def main(argv):
     results.append(("stats newest/highest history writes all sourced from payload play data",
                     not unsourced))
 
+    # --- Step 4h: playlists tier — getPlaylists, getPlaylist, getSongsFromPlaylist ---
+    print("\n[4h] playlists tier — getPlaylists, getPlaylist, getSongsFromPlaylist")
+    historyIdsBefore = _historyIds(dbPath)
+
+    # getPlaylists: no offset/limit -> auto-paginates EVERY playlist. Unlike
+    # the song library, playlists are few and bounded — a full fetch is cheap.
+    playlists = client.getPlaylists()
+    totalCount = (client.lastPayload or {}).get("total_count")
+    print("    getPlaylists: %d returned, envelope total_count: %s" % (len(playlists), totalCount))
+    uniqueIds = len({playlist.id for playlist in playlists})
+    print("    getPlaylists: %d rows, %d unique ids%s"
+          % (len(playlists), uniqueIds,
+             " — DUPLICATES" if uniqueIds < len(playlists) else ""))
+    if playlists:
+        print("    first by (name, id): %s (id %s, %d item(s))"
+              % (playlists[0].name, playlists[0].id, playlists[0].items))
+        print("    last  by (name, id): %s (id %s, %d item(s))"
+              % (playlists[-1].name, playlists[-1].id, playlists[-1].items))
+    playlistIds = [playlist.id for playlist in playlists]
+    playlistsPresent = _presenceCheck("PlaylistEntity", "id", playlistIds)
+    results.append(("getPlaylists returned rows", len(playlists) > 0))
+    results.append(("playlists all present in PlaylistEntity", playlistsPresent))
+
+    if not playlists:
+        print("    skipped — no playlist to pick")
+        results.append(("getPlaylist returned the requested playlist", False))
+        results.append(("getPlaylist persisted with matching name", False))
+        results.append(("playlist songs present in SongEntity", False))
+        results.append(("position order preserved", False))
+        results.append(("playlist join rows all resolve to SongEntity", False))
+        fetchedSongIds = set()
+    else:
+        # Pick the playlist with the most items — never a fixed id.
+        pickedPlaylist = max(playlists, key=lambda playlist: playlist.items)
+        print("    picked playlist id %s (%s, %d item(s))"
+              % (pickedPlaylist.id, pickedPlaylist.name, pickedPlaylist.items))
+
+        # getPlaylist: single fetch, write-through, read-back by id.
+        playlist = client.getPlaylist(pickedPlaylist.id)
+        print("    getPlaylist: %s (owner %s, type %s, %d item(s))"
+              % (playlist.name, playlist.owner, playlist.type, playlist.items))
+        connection = sqlite3.connect(dbPath)
+        try:
+            playlistRow = connection.execute(
+                "SELECT name FROM PlaylistEntity WHERE id = ?", (pickedPlaylist.id,)
+            ).fetchone()
+        finally:
+            connection.close()
+        print("    PlaylistEntity row for id %s: %s"
+              % (pickedPlaylist.id, playlistRow[0] if playlistRow else "<missing>"))
+        results.append(
+            ("getPlaylist returned the requested playlist", playlist.id == pickedPlaylist.id)
+        )
+        results.append(
+            ("getPlaylist persisted with matching name",
+             playlistRow is not None and playlistRow[0] == playlist.name)
+        )
+
+        # getSongsFromPlaylist: no offset/limit -> auto-paginates the whole
+        # playlist (bounded, unlike the song library). The read-back is
+        # ordered by PlaylistSongEntity.position — the ordering contract.
+        playlistSongs = client.getSongsFromPlaylist(pickedPlaylist.id)
+        totalCount = (client.lastPayload or {}).get("total_count")
+        print("    getSongsFromPlaylist(%s): %d returned, envelope total_count: %s"
+              % (pickedPlaylist.id, len(playlistSongs), totalCount))
+        if playlistSongs:
+            print("    first by position: %s (id %s)"
+                  % (playlistSongs[0].title, playlistSongs[0].id))
+            print("    last  by position: %s (id %s)"
+                  % (playlistSongs[-1].title, playlistSongs[-1].id))
+        songIds = [song.id for song in playlistSongs]
+        fetchedSongIds = set(songIds)
+        results.append(
+            ("playlist songs present in SongEntity",
+             _presenceCheck("SongEntity", "mediaId", songIds))
+        )
+
+        # POSITION CONTRACT: each payload entry's playlisttrack is stored
+        # verbatim as PlaylistSongEntity.position and the read-back orders by
+        # it — so the join rows ordered by position must reproduce the
+        # payload's (id, playlisttrack) sequence entry by entry.
+        # Caveats: lastPayload holds the FINAL page — a playlist larger than
+        # the page limit compares only that page (the count printout above
+        # shows it). And upsert-only means a song REMOVED from the playlist
+        # since a previous run keeps its stale join row and surfaces here as
+        # a mismatch — re-run against a fresh DB to confirm a real diff.
+        payloadSongs = (client.lastPayload or {}).get("song") or []
+        expected = [(song.get("id"), song.get("playlisttrack")) for song in payloadSongs]
+        connection = sqlite3.connect(dbPath)
+        try:
+            actual = [
+                (row[0], row[1])
+                for row in connection.execute(
+                    "SELECT songId, position FROM PlaylistSongEntity "
+                    "WHERE playlistId = ? ORDER BY position, songId",
+                    (pickedPlaylist.id,),
+                ).fetchall()
+            ]
+        finally:
+            connection.close()
+        firstMismatch = None
+        for index in range(min(len(expected), len(actual))):
+            if expected[index] != actual[index]:
+                firstMismatch = index
+                break
+        if firstMismatch is None and len(expected) != len(actual):
+            firstMismatch = min(len(expected), len(actual))
+        if firstMismatch is None:
+            print("    position order preserved: %d/%d" % (len(actual), len(expected)))
+            results.append(("position order preserved", len(expected) > 0))
+        else:
+            exp = expected[firstMismatch] if firstMismatch < len(expected) else "<missing>"
+            act = actual[firstMismatch] if firstMismatch < len(actual) else "<missing>"
+            print("    FAIL position order at index %d: payload %s vs DB %s"
+                  % (firstMismatch, exp, act))
+            results.append(("position order preserved", False))
+
+        # Every join row's songId must resolve to a SongEntity row — the
+        # write-through upserts songs and join rows in ONE transaction, so a
+        # dangling join row means the transaction contract broke.
+        connection = sqlite3.connect(dbPath)
+        try:
+            dangling = connection.execute(
+                "SELECT playlistSong.songId FROM PlaylistSongEntity playlistSong "
+                "LEFT JOIN SongEntity song ON song.mediaId = playlistSong.songId "
+                "WHERE playlistSong.playlistId = ? AND song.mediaId IS NULL",
+                (pickedPlaylist.id,),
+            ).fetchall()
+        finally:
+            connection.close()
+        print("    join rows with no SongEntity row: %s"
+              % (", ".join(row[0] for row in dangling) if dangling else "none"))
+        results.append(("playlist join rows all resolve to SongEntity", not dangling))
+
+    # History provenance (same as [4g]): playlist songs carry play data and
+    # the write-through persists HistoryEntity rows for songs with non-null
+    # last_played. Growth is legitimate — the check is provenance: every NEW
+    # history row's mediaId must be a song fetched in this step.
+    historyIdsAfter = _historyIds(dbPath)
+    newHistoryIds = historyIdsAfter - historyIdsBefore
+    connection = sqlite3.connect(dbPath)
+    try:
+        newHistoryMediaIds = {
+            row[0]
+            for row in connection.execute(
+                "SELECT mediaId FROM HistoryEntity WHERE id IN (%s)"
+                % ",".join("?" * len(newHistoryIds)),
+                list(newHistoryIds),
+            )
+        } if newHistoryIds else set()
+    finally:
+        connection.close()
+    unsourced = newHistoryMediaIds - fetchedSongIds
+    print("    history rows before/after: %d / %d (%d new)"
+          % (len(historyIdsBefore), len(historyIdsAfter), len(newHistoryIds)))
+    print("    new history mediaIds not among fetched playlist songs: %s"
+          % (", ".join(sorted(unsourced)) if unsourced else "none"))
+    results.append(("playlist history writes all sourced from payload play data",
+                    not unsourced))
+
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
     allOk = _report(results)
