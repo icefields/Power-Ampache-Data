@@ -5,6 +5,9 @@ recent/frequent/forgotten read back through play history (HistoryEntity) —
 DB-derived ordering per CONVENTIONS. random is the explicit CONVENTIONS
 exception: random order can't be DB-derived, so the ORDER comes from the
 response while entity data still comes only from the DB read-back.
+newest/highest read back ordered by searchTitle — LIMITATION: neither add
+date nor rating orders the read-back, and it does not join HistoryEntity,
+so never-played songs appear too (see the method docstrings).
 
 The stats_song.json fixture ships never-played songs (null last_played);
 _playedPayload builds played variants, and the raw fixture exercises the
@@ -187,3 +190,69 @@ def testStatsSongsMapExampleFields(makeClient, seedCredentials, seedSession, sta
     assert first.trackNumber == 14
     assert first.year == 2005
     assert first.mbId == "ab598f5a-4cbb-4ce0-a3ac-9de17026f528"
+
+
+def testGetNewestSongsWriteThroughAndReadBack(dbPath, makeClient, seedCredentials,
+                                              seedSession, statsSongPayload):
+    """newest: unlike recent/frequent/forgotten the read-back does NOT join
+    HistoryEntity — never-played songs (the raw fixture) still appear,
+    ordered by searchTitle."""
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([statsSongPayload])
+    songs = client.getNewestSongs()
+    # read-back order is DB-derived: searchTitle (LIMITATION — not add date)
+    assert [s.id for s in songs] == ["135", "134"]
+    (request,) = transport.requests
+    assert request["params"]["action"] == "stats"
+    assert request["params"]["type"] == "song"
+    assert request["params"]["filter"] == "newest"
+    assert request["headers"]["Authorization"] == "Bearer " + HANDSHAKE_AUTH
+    assert "auth" not in request["params"]
+    # write-through: rows are in the DB, not just the return value
+    connection = sqlite3.connect(dbPath)
+    assert connection.execute("SELECT COUNT(*) FROM SongEntity").fetchone()[0] == 2
+    # never-played songs (null last_played) write no history rows
+    assert connection.execute("SELECT COUNT(*) FROM HistoryEntity").fetchone()[0] == 0
+
+
+def testGetHighestSongsSendsFilterAndReadsBack(makeClient, seedCredentials, seedSession,
+                                               statsSongPayload):
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([statsSongPayload])
+    songs = client.getHighestSongs()
+    assert [s.id for s in songs] == ["135", "134"]  # searchTitle order
+    assert transport.requests[0]["params"]["filter"] == "highest"
+
+
+def testNewestAndHighestSongsReadBackIsSearchTitleOrder(makeClient, seedCredentials,
+                                                        seedSession, statsSongPayload):
+    """LIMITATION, explicit: neither add date (newest) nor rating (highest)
+    orders the read-back — it is ALWAYS searchTitle, even when the response
+    order differs (here deliberately reversed)."""
+    seedCredentials()
+    seedSession()
+    payload = copy.deepcopy(statsSongPayload)
+    payload["song"].reverse()  # response order: 134 before 135
+    client, _ = makeClient([payload, payload])
+    assert [s.id for s in client.getNewestSongs()] == ["135", "134"]
+    assert [s.id for s in client.getHighestSongs()] == ["135", "134"]
+
+
+def testGetHighestSongsSendsStatsParams(makeClient, seedCredentials, seedSession, statsSongPayload):
+    """user_id/username/offset/limit are forwarded; a caller-specified window
+    means ONE request, verbatim (the caller owns the window)."""
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([statsSongPayload])
+    client.getHighestSongs(userId=4, username="user", offset=10, limit=5)
+    (request,) = transport.requests
+    params = request["params"]
+    assert params["action"] == "stats"
+    assert params["type"] == "song"
+    assert params["filter"] == "highest"
+    assert params["user_id"] == "4"
+    assert params["username"] == "user"
+    assert params["offset"] == "10"
+    assert params["limit"] == "5"

@@ -7,8 +7,9 @@ pages until total_count; explicit limit -> the caller's window, verbatim.
 NO HistoryEntity rows are written for albums: mapHistory is song-shaped
 and AlbumEntity has no play columns. Play-derived ordering is therefore
 impossible from stored columns — recent/frequent/forgotten read back
-ordered by (year, searchName) like getAlbums; only random keeps response
-order (the explicit CONVENTIONS exception)."""
+ordered by (year, searchName) like getAlbums; newest/highest read back the
+same way (LIMITATION: neither add date nor rating orders the read-back);
+only random keeps response order (the explicit CONVENTIONS exception)."""
 import sqlite3
 
 HANDSHAKE_AUTH = "0c45633f51b0e264a2260ebfa406e1ad"
@@ -122,3 +123,45 @@ def testStatsAlbumsUpsertRefreshesNeverDuplicates(dbPath, makeClient, seedCreden
     client.getFrequentAlbums()
     connection = sqlite3.connect(dbPath)
     assert connection.execute("SELECT COUNT(*) FROM AlbumEntity").fetchone()[0] == 2
+
+
+def testGetNewestAlbumsSendsFilterAndReadsBack(dbPath, makeClient, seedCredentials,
+                                               seedSession, statsAlbumPayload):
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([statsAlbumPayload])
+    albums = client.getNewestAlbums()
+    # read-back is (year, searchName): 2005 "Forget and Remember" before 2012 "Buried in Nausea"
+    assert [a.id for a in albums] == ["21", "12"]
+    (request,) = transport.requests
+    assert request["params"]["action"] == "stats"
+    assert request["params"]["type"] == "album"
+    assert request["params"]["filter"] == "newest"
+    # write-through: rows are in the DB, not just the return value
+    connection = sqlite3.connect(dbPath)
+    assert connection.execute("SELECT COUNT(*) FROM AlbumEntity").fetchone()[0] == 2
+
+
+def testGetHighestAlbumsSendsFilterAndReadsBack(makeClient, seedCredentials, seedSession,
+                                                statsAlbumPayload):
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([statsAlbumPayload])
+    albums = client.getHighestAlbums()
+    assert [a.id for a in albums] == ["21", "12"]
+    assert transport.requests[0]["params"]["filter"] == "highest"
+
+
+def testNewestAndHighestAlbumsReadBackIsNotResponseOrder(makeClient, seedCredentials,
+                                                         seedSession, statsAlbumPayload):
+    """LIMITATION, explicit: neither add date (newest) nor rating (highest)
+    orders the read-back — it is ALWAYS (year, searchName), even when the
+    response order differs (here deliberately reversed). Contrast
+    testGetRandomAlbumsKeepsResponseOrder: only random keeps response order."""
+    seedCredentials()
+    seedSession()
+    reversedPayload = dict(statsAlbumPayload)
+    reversedPayload["album"] = list(reversed(statsAlbumPayload["album"]))
+    client, _ = makeClient([reversedPayload, reversedPayload])
+    assert [a.id for a in client.getNewestAlbums()] == ["21", "12"]
+    assert [a.id for a in client.getHighestAlbums()] == ["21", "12"]

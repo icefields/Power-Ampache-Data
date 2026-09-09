@@ -342,6 +342,38 @@ class AmpacheClient:
             result.append(readBack)
         return result
 
+    def getNewestSongs(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=song, filter=newest): write-through for the newest
+        songs.
+
+        fetch -> map (song rows + HistoryEntity rows for played songs only;
+        null last_played maps to None and is dropped) -> upsert BOTH in one
+        transaction -> read back from the DB only: ALL songs ordered by
+        searchTitle — no HistoryEntity join, so never-played songs appear
+        too.
+
+        LIMITATION: SongEntity has no add-date column, so newest-first
+        ordering is impossible from stored columns — the read-back is NOT
+        ordered by add date. Envelope-only fields (total_count, md5) are
+        not persisted — reach them via lastPayload."""
+        self._getStatsSongs(StatsFilter.NEWEST, userId, username, offset, limit)
+        return self._songRepository.getSongs()
+
+    def getHighestSongs(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=song, filter=highest): write-through for the highest
+        rated songs.
+
+        fetch -> map (song rows + HistoryEntity rows for played songs only)
+        -> upsert BOTH in one transaction -> read back from the DB only:
+        ALL songs ordered by searchTitle — no HistoryEntity join, so
+        never-played songs appear too.
+
+        LIMITATION: a rating-ordered read-back is not invented here — the
+        read-back is NOT ordered by rating. Envelope-only fields
+        (total_count, md5) are not persisted — reach them via lastPayload."""
+        self._getStatsSongs(StatsFilter.HIGHEST, userId, username, offset, limit)
+        return self._songRepository.getSongs()
+
     def _getStatsSongs(self, statsFilter: StatsFilter, userId=None, username=None,
                        offset=None, limit=None):
         """Shared write-through for the stats song family: fetch (all pages)
@@ -414,6 +446,28 @@ class AmpacheClient:
                 raise AmpacheError("album " + str(album.get("id")) + " missing from DB after write-through")
             result.append(readBack)
         return result
+
+    def getNewestAlbums(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=album, filter=newest): write-through for the newest
+        albums.
+
+        LIMITATION: AlbumEntity has no add-date column, so newest-first
+        ordering is impossible from stored columns — the read-back is
+        ordered by (year, searchName) like getAlbums, NOT by add date.
+        Envelope-only fields (total_count, md5) stay on lastPayload."""
+        self._getStatsAlbums(StatsFilter.NEWEST, userId, username, offset, limit)
+        return self._albumRepository.getAlbums()
+
+    def getHighestAlbums(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=album, filter=highest): write-through for the highest
+        rated albums.
+
+        LIMITATION: a rating-ordered read-back is not invented here — the
+        read-back is ordered by (year, searchName) like getAlbums, NOT by
+        rating. Envelope-only fields (total_count, md5) stay on
+        lastPayload."""
+        self._getStatsAlbums(StatsFilter.HIGHEST, userId, username, offset, limit)
+        return self._albumRepository.getAlbums()
 
     def _getStatsAlbums(self, statsFilter: StatsFilter, userId=None, username=None,
                         offset=None, limit=None):
