@@ -11,3 +11,6 @@ class ErrorCode(IntEnum):
     # HTTP status surfaced as the error code when the server answers a failed
     # handshake with HTTP 401 instead of a spec envelope. Not a spec code.
     UNAUTHORIZED = 401
+    # HTTP status surfaced as the error code when the server answers a stale
+    # session token with HTTP 403 instead of the 4701 envelope. Not a spec code.
+    FORBIDDEN = 403

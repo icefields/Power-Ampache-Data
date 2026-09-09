@@ -778,7 +778,7 @@ class AmpacheClient:
             raiseForError(payload)
         except InvalidHandshakeError:
             # Expired-session resurrection (VERIFIED): the server rejected the
-            # token as stale/expired (4701, or HTTP 401) — silently re-handshake
+            # token as stale/expired (4701, or HTTP 401/403) — silently re-handshake
             # from the stored credentials and retry the original request exactly
             # ONCE; a second failure propagates to the caller. The handshake's
             # upsert replaces the single SessionEntity row, so the dead token is

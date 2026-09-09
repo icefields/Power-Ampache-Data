@@ -31,7 +31,7 @@ class ApiError(AmpacheError):
 
 
 class InvalidHandshakeError(ApiError):
-    """4701 (or HTTP 401) — token expired/invalid or bad credentials.
+    """4701 (or HTTP 401/403) — token expired/invalid or bad credentials.
     Triggers silent re-auth + exactly one retry."""
 
 
@@ -58,6 +58,7 @@ class UnknownApiError(ApiError):
 _ERROR_CODE_MAP = {
     ErrorCode.INVALID_HANDSHAKE: InvalidHandshakeError,
     ErrorCode.UNAUTHORIZED: InvalidHandshakeError,  # HTTP 401 on a failed handshake
+    ErrorCode.FORBIDDEN: InvalidHandshakeError,  # HTTP 403 on a stale session token
     ErrorCode.ACCESS_DENIED: AccessDeniedError,
     ErrorCode.NOT_FOUND: NotFoundError,
     ErrorCode.DEPRECATED: DeprecatedError,

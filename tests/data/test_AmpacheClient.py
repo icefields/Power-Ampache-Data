@@ -13,6 +13,7 @@ HANDSHAKE_AUTH = "0c45633f51b0e264a2260ebfa406e1ad"
 
 ANONYMOUS_PING = {"server": "Ampache", "version": "8.0.0", "compatible": "1", "api": "8.0.0"}
 ERROR_401 = {"error": {"code": 401, "message": "Unauthorized"}}
+ERROR_403 = {"error": {"code": 403, "message": "Forbidden"}}
 ERROR_4701 = {"error": {"code": 4701, "message": "Invalid handshake"}}
 ERROR_4704 = {"error": {"code": 4704, "message": "Not found"}}
 
@@ -103,6 +104,25 @@ def testHttp401TriggersReauthAndRetry(dbPath, makeClient, seedCredentials, seedS
     seedCredentials()
     seedSession(auth="expiredtoken")
     client, transport = makeClient([ERROR_401, handshakePayload, pingOk(handshakePayload)])
+    result = client.ping()
+    assert result.authenticated is True
+    assert [r["params"]["action"] for r in transport.requests] == ["ping", "handshake", "ping"]
+    session = SessionRepository(Database(dbPath)).getSession()
+    assert session.auth == HANDSHAKE_AUTH
+
+
+def testHttp403MapsToInvalidHandshakeError():
+    """Direct mapping check: a 403-coded envelope raises InvalidHandshakeError."""
+    with pytest.raises(InvalidHandshakeError):
+        raiseForError(ERROR_403)
+
+
+def testHttp403TriggersReauthAndRetry(dbPath, makeClient, seedCredentials, seedSession, handshakePayload):
+    """Client-level: a 403 on an authenticated call behaves like 4701/401 —
+    silent re-auth from stored credentials, retry once."""
+    seedCredentials()
+    seedSession(auth="expiredtoken")
+    client, transport = makeClient([ERROR_403, handshakePayload, pingOk(handshakePayload)])
     result = client.ping()
     assert result.authenticated is True
     assert [r["params"]["action"] for r in transport.requests] == ["ping", "handshake", "ping"]
