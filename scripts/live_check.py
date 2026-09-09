@@ -788,6 +788,25 @@ def main(argv):
                   "%d byte(s) read (cap %d)" % (status, contentType, byteCount, READ_CAP))
             results.append(("/play/ fallback fetchable with live token", fallbackOk))
 
+    # --- Step 5b: flag/rate — interaction tier (mutating writes) ---------------
+    # Placed BEFORE goodbye (step 6): both calls need the live session. The
+    # song id is HARDCODED (MEDIA_SONG_ID) — the same live-verified id as the
+    # media step. Test account: the writes are left in place, no state
+    # restoration. flag()/rate() re-fetch the song through getSong and verify
+    # the read-back themselves — a mismatch raises CacheVerificationError.
+    print("\n[5b] flag/rate — interaction tier (song %s)" % MEDIA_SONG_ID)
+    flagged = client.flag("song", MEDIA_SONG_ID, True)
+    print("    flag read-back: %s" % flagged.flag)
+    results.append(("flag applied+verified", flagged.flag is True))
+
+    rated = client.rate("song", MEDIA_SONG_ID, 4)
+    print("    rating read-back: %s" % rated.rating)
+    results.append(("rating applied+verified", rated.rating == 4))
+
+    # `rated` is the latest re-fetch: it should show BOTH writes — the flag
+    # from the flag() call persisted through the rate() re-fetch.
+    print("    fetched entity: flag=%s rating=%s" % (rated.flag, rated.rating))
+
     # --- Step 6: goodbye — session teardown --------------------------------------
     # Placed LAST: it destroys the session, so nothing after it may need auth.
     # --keep-session skips it entirely: the session (and the MPV TEST URLs
