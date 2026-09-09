@@ -3,6 +3,8 @@
     fetch (Transport) -> map (mappers) -> upsert (repositories) -> read back (repositories)
 
 Repositories are SQL-only and never see HTTP; mappers never see SQL or domain."""
+from urllib.parse import urlencode
+
 from ..domain.Album import Album
 from ..domain.Artist import Artist
 from ..domain.OperationResult import OperationResult
@@ -597,6 +599,64 @@ class AmpacheClient:
             self._historyRepository.upsertHistories(historyRows)
             self._playlistSongRepository.upsertPlaylistSongs(playlistSongRows)
         return self._songRepository.getPlaylistSongs(playlistId)
+
+    def getStreamUrl(self, songId, format=None, bitrate=None, offset=None, stats=None) -> str:
+        """stream: build the playback URL for one song. NO network call, NO DB
+        write — pure URL construction (see _mediaUrl)."""
+        return self._mediaUrl(
+            ApiMethod.STREAM, songId, format=format, bitrate=bitrate,
+            offset=offset, stats=stats,
+        )
+
+    def getDownloadUrl(self, songId, format=None, bitrate=None, stats=None) -> str:
+        """download: build the download URL for one song. NO network call, NO
+        DB write — pure URL construction (see _mediaUrl). `offset` is a
+        stream-only parameter and is not accepted here."""
+        return self._mediaUrl(
+            ApiMethod.DOWNLOAD, songId, format=format, bitrate=bitrate, stats=stats,
+        )
+
+    def _mediaUrl(self, action, songId, format=None, bitrate=None, offset=None,
+                  stats=None) -> str:
+        """The single place media-URL construction lives (stream/download share
+        every rule).
+
+        Pure string building: the only collaborator touched is SessionManager.
+        ensureSession() returns the LIVE token without any network call when a
+        valid session exists (an expired/missing session goes through the
+        standard silent handshake — the normal re-auth flow, not a media
+        request), and raises InvalidHandshakeError after goodbye() — the
+        terminated-session guard is reused as-is. Nothing is persisted: no
+        entity, no mapper, no repository. The URL is rebuilt per request from
+        the current session and is never cached.
+
+        `auth` travels as a QUERY PARAMETER here — deliberately, unlike every
+        other method: the returned URL is handed to external
+        players/downloaders that cannot set an Authorization header, and the
+        spec's stream/download sections define auth-as-parameter. The URL is
+        the caller's responsibility; the library never logs or stores it.
+
+        type is ALWAYS 'song': the spec warns that playlist/search types
+        return a RANDOM object, so they are not exposed. `filter` carries the
+        song UID (the `id` parameter is deprecated, removed in API9). Optional
+        params are appended only when not None (0 is a real value for
+        stats/offset and IS appended); `format` is free-form ('raw' = original
+        file); `bitrate` is passed through as-is."""
+        credentials = self._credentialsRepository.getCredentials()
+        if credentials is None:
+            raise AmpacheError("no credentials stored in CredentialsEntity; serverUrl unknown")
+        token = self._sessionManager.ensureSession()
+        params = {
+            "action": action.value,
+            "auth": token,
+            "filter": str(songId),
+            "type": "song",
+        }
+        for key, value in (("format", format), ("bitrate", bitrate),
+                           ("offset", offset), ("stats", stats)):
+            if value is not None:
+                params[key] = str(value)
+        return credentials.serverUrl.rstrip("/") + ENDPOINT_PATH + "?" + urlencode(params)
 
     def _fetchAllPages(self, action, params, listKey):
         """The one place list-method pagination lives (CONVENTIONS: implement

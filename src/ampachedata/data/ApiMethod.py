@@ -19,3 +19,5 @@ class ApiMethod(str, Enum):
     PLAYLIST = "playlist"
     PLAYLIST_SONGS = "playlist_songs"
     STATS = "stats"
+    STREAM = "stream"
+    DOWNLOAD = "download"
