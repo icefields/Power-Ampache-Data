@@ -1,3 +1,4 @@
+livetest.sh
 .venv/
 .env*
 musicdb.db
