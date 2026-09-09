@@ -410,6 +410,7 @@ def main(argv):
 
     # --- Step 4g: stats newest/highest (song + album) ------------------------------
     print("\n[4g] stats newest/highest — getNewestSongs, getHighestSongs, getNewestAlbums, getHighestAlbums")
+    historyBefore = _counts(dbPath)["HistoryEntity"]
 
     def _presenceCheck(table, idColumn, ids):
         """Every returned id present in the DB (read-back verification)."""
@@ -437,6 +438,10 @@ def main(argv):
         entities = method()
         totalCount = (client.lastPayload or {}).get("total_count")
         print("    %s: %d returned, envelope total_count: %s" % (label, len(entities), totalCount))
+        uniqueIds = len({e.id for e in entities})
+        print("    %s: %d rows, %d unique ids%s"
+              % (label, len(entities), uniqueIds,
+                 " — DUPLICATES" if uniqueIds < len(entities) else ""))
         if entities:
             print("    first: %s (id %s)" % (entities[0].name if hasattr(entities[0], "name") else entities[0].title, entities[0].id))
             print("    last:  %s (id %s)" % (entities[-1].name if hasattr(entities[-1], "name") else entities[-1].title, entities[-1].id))
@@ -449,6 +454,20 @@ def main(argv):
     _runStatsMethod("getHighestSongs", client.getHighestSongs, "SongEntity", "mediaId")
     _runStatsMethod("getNewestAlbums", client.getNewestAlbums, "AlbumEntity", "id")
     _runStatsMethod("getHighestAlbums", client.getHighestAlbums, "AlbumEntity", "id")
+
+    # Overlap: near-total overlap means the server ignores the filter.
+    newestAlbumIds = {a.id for a in client.getNewestAlbums()}
+    highestAlbumIds = {a.id for a in client.getHighestAlbums()}
+    overlap = newestAlbumIds & highestAlbumIds
+    print("    album newest/highest overlap: %d ids in common" % len(overlap))
+
+    # These four methods are not play-based stats — HistoryEntity must not change.
+    historyAfter = _counts(dbPath)["HistoryEntity"]
+    print("    history rows before/after: %d / %d%s"
+          % (historyBefore, historyAfter,
+             "" if historyBefore == historyAfter else " — BUG: play-based writes detected"))
+    results.append(("stats newest/highest left HistoryEntity unchanged",
+                    historyBefore == historyAfter))
 
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
