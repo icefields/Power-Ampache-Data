@@ -22,6 +22,10 @@ from ampachedata.data.db.repositories.SessionRepository import SessionRepository
 USAGE = "usage: python scripts/live_check.py [--keep-session] <path-to-musicdb.db>"
 ARTIST_LIMIT = 50
 READ_CAP = 200 * 1024  # ~200KB — abort body reads past this
+# Media-step song id — HARDCODED, never picked dynamically: live-verified
+# streaming via mpv on 2026-09-09. Ids 180831 and 215751 have broken backing
+# files server-side and hang the fetches.
+MEDIA_SONG_ID = "224408"
 _TABLES = ("ArtistEntity", "AlbumEntity", "SongEntity", "HistoryEntity")
 
 
@@ -711,27 +715,32 @@ def main(argv):
     # URLs (no network call, no DB write) — the GETs below are the script's own
     # verification, not library calls.
     print("\n[5] media URLs — getStreamUrl / getDownloadUrl + live fetch")
-    # Any persisted song works: it is previously fetched data (write-through),
-    # and both URL kinds are rebuilt fresh with the LIVE token below — the
-    # stored songUrl's own ssid is stale and gets discarded.
-    connection = sqlite3.connect(dbPath)
-    try:
-        mediaRow = connection.execute(
-            "SELECT mediaId, title, songUrl FROM SongEntity "
-            "WHERE songUrl IS NOT NULL AND songUrl != '' LIMIT 1"
-        ).fetchone()
-    finally:
-        connection.close()
+    # The song id is HARDCODED (MEDIA_SONG_ID), never picked from cached data:
+    # 224408 is live-verified streaming via mpv on 2026-09-09, while ids
+    # 180831 and 215751 have broken backing files server-side and HANG the
+    # fetches. The DB is consulted only for the fallback's persisted songUrl —
+    # the primary URLs need just the id and the live token.
     session = SessionRepository(Database(dbPath)).getSession()
-    if mediaRow is None or session is None or not session.auth:
-        print("    skipped — no song with a songUrl in the DB, or no live session")
+    if session is None or not session.auth:
+        print("    skipped — no live session")
         results.append(("stream URL constructed+fetchable", False))
         results.append(("download URL constructed+fetchable", False))
         results.append(("/play/ fallback fetchable with live token", False))
     else:
-        mediaSongId, mediaSongTitle, songUrl = mediaRow
+        mediaSongId = MEDIA_SONG_ID
         liveToken = session.auth
-        print("    picked song id %s (%s)" % (mediaSongId, mediaSongTitle))
+        connection = sqlite3.connect(dbPath)
+        try:
+            mediaRow = connection.execute(
+                "SELECT title, songUrl FROM SongEntity WHERE mediaId = ?",
+                (mediaSongId,),
+            ).fetchone()
+        finally:
+            connection.close()
+        mediaSongTitle = mediaRow[0] if mediaRow else None
+        songUrl = mediaRow[1] if mediaRow else None
+        print("    song id %s (%s) — hardcoded, live-verified via mpv 2026-09-09"
+              % (mediaSongId, mediaSongTitle or "<not in DB>"))
 
         # PRIMARY: pure URL construction by the library (no network, no DB).
         streamUrl = client.getStreamUrl(mediaSongId, stats=0)
@@ -762,17 +771,22 @@ def main(argv):
         # ssid (the stored query's own ssid/uid/bitrate/player params are
         # dropped). NOTE: stats suppression is unknown on this endpoint — this
         # test hit may record a play.
-        parts = urlsplit(songUrl)
-        fallbackUrl = ("%s://%s%s?" % (parts.scheme, parts.netloc, parts.path)) + urlencode(
-            {"ssid": liveToken, "type": "song", "oid": mediaSongId}
-        )
-        print("    fallback /play/ endpoint: %s://%s%s (query rebuilt: ssid=<live token>, "
-              "type=song, oid=%s)" % (parts.scheme, parts.netloc, parts.path, mediaSongId))
-        print("    NOTE: stats suppression unknown on /play/ — this hit may record a play")
-        fallbackOk, status, contentType, byteCount = _fetchRange(fallbackUrl)
-        print("    GET /play/ fallback (Range: bytes=0-1024): HTTP %s, Content-Type: %s, "
-              "%d byte(s) read (cap %d)" % (status, contentType, byteCount, READ_CAP))
-        results.append(("/play/ fallback fetchable with live token", fallbackOk))
+        if not songUrl:
+            print("    /play/ fallback skipped — song %s has no persisted songUrl "
+                  "(fetch it first, e.g. via getSong)" % mediaSongId)
+            results.append(("/play/ fallback fetchable with live token", False))
+        else:
+            parts = urlsplit(songUrl)
+            fallbackUrl = ("%s://%s%s?" % (parts.scheme, parts.netloc, parts.path)) + urlencode(
+                {"ssid": liveToken, "type": "song", "oid": mediaSongId}
+            )
+            print("    fallback /play/ endpoint: %s://%s%s (query rebuilt: ssid=<live token>, "
+                  "type=song, oid=%s)" % (parts.scheme, parts.netloc, parts.path, mediaSongId))
+            print("    NOTE: stats suppression unknown on /play/ — this hit may record a play")
+            fallbackOk, status, contentType, byteCount = _fetchRange(fallbackUrl)
+            print("    GET /play/ fallback (Range: bytes=0-1024): HTTP %s, Content-Type: %s, "
+                  "%d byte(s) read (cap %d)" % (status, contentType, byteCount, READ_CAP))
+            results.append(("/play/ fallback fetchable with live token", fallbackOk))
 
     # --- Step 6: goodbye — session teardown --------------------------------------
     # Placed LAST: it destroys the session, so nothing after it may need auth.
