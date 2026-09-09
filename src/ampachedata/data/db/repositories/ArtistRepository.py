@@ -19,7 +19,7 @@ _UPSERT_SQL = "INSERT OR REPLACE INTO ArtistEntity ({}) VALUES ({})".format(
 
 _SELECT_SQL = (
     "SELECT id, name, albumCount, songCount, genre, artUrl, summary, time, "
-    "yearFormed, placeFormed FROM ArtistEntity"
+    "yearFormed, placeFormed, flag FROM ArtistEntity"
 )
 
 
@@ -35,6 +35,7 @@ def _toArtist(row) -> Artist:
         time=row["time"],
         yearFormed=row["yearFormed"],
         placeFormed=row["placeFormed"],
+        flag=bool(row["flag"]),
     )
 
 

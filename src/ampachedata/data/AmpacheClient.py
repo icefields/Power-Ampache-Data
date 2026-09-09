@@ -13,6 +13,7 @@ from ..domain.Playlist import Playlist
 from ..domain.Song import Song
 from .ApiMethod import ApiMethod
 from .ErrorCode import ErrorCode
+from .ObjectType import ObjectType
 from .StatsFilter import StatsFilter
 from .Transport import UrllibTransport
 from .auth.SessionManager import ENDPOINT_PATH, SessionManager
@@ -32,7 +33,7 @@ from .db.repositories.PlaylistRepository import PlaylistRepository
 from .db.repositories.PlaylistSongRepository import PlaylistSongRepository
 from .db.repositories.SessionRepository import SessionRepository
 from .db.repositories.SongRepository import SongRepository
-from .errors import AmpacheError, InvalidHandshakeError, raiseForError
+from .errors import AmpacheError, CacheVerificationError, InvalidHandshakeError, raiseForError
 
 
 class AmpacheClient:
@@ -657,6 +658,79 @@ class AmpacheClient:
             if value is not None:
                 params[key] = str(value)
         return credentials.serverUrl.rstrip("/") + ENDPOINT_PATH + "?" + urlencode(params)
+
+    def flag(self, objectType, objectId, flagged: bool):
+        """flag: mark/unmark a library item as favorite (interaction tier —
+        the first MUTATING method family).
+
+        action=flag with filter=objectId, type, flag=1|0, sent via
+        _sendWithAuth (Bearer header; the goodbye terminated-session guard
+        applies through ensureSession). The response is a bare success
+        envelope — no object data — so on success the object is RE-FETCHED
+        through the existing getter for its type (getSong/getAlbum/
+        getArtist/getPlaylist); that getter's write-through upsert refreshes
+        the cache through proven machinery, and the re-fetched entity is
+        returned. Read-back verification: the entity's flag must equal
+        `flagged`, else CacheVerificationError. On an error envelope the
+        typed error propagates BEFORE any re-fetch — no DB write happens."""
+        objectType = ObjectType(objectType)
+        params = {
+            "filter": str(objectId),
+            "type": objectType.value,
+            "flag": "1" if flagged else "0",
+        }
+        self._sendWithAuth(ApiMethod.FLAG, params)
+        entity = self._getByType(objectType, objectId)
+        if entity.flag != flagged:
+            raise CacheVerificationError(
+                "flag verification failed for " + objectType.value + " " + str(objectId) +
+                ": set flag=" + str(flagged) + " but re-fetched entity has flag=" + str(entity.flag)
+            )
+        return entity
+
+    def rate(self, objectType, objectId, rating: int):
+        """rate: set the 0-5 rating of a library item (interaction tier).
+
+        `rating` is validated BEFORE any network call — out of range raises
+        ValueError without touching the transport. On the success envelope
+        the object is re-fetched through the existing getter (same pattern
+        as flag()) and the re-fetched entity is returned. Read-back
+        verification: the entity's rating must equal `rating`, else
+        CacheVerificationError.
+
+        LIMITATION: ArtistEntity has NO rating column (CONVENTIONS drop
+        list), so for ObjectType.ARTIST the rating is applied server-side
+        and the cache re-fetched, but rating verification is SKIPPED —
+        there is no column to verify against. On an error envelope the
+        typed error propagates BEFORE any re-fetch — no DB write happens."""
+        objectType = ObjectType(objectType)
+        if not isinstance(rating, int) or isinstance(rating, bool) or rating < 0 or rating > 5:
+            raise ValueError("rating must be an integer between 0 and 5, got " + repr(rating))
+        params = {
+            "filter": str(objectId),
+            "type": objectType.value,
+            "rating": str(rating),
+        }
+        self._sendWithAuth(ApiMethod.RATE, params)
+        entity = self._getByType(objectType, objectId)
+        if objectType is not ObjectType.ARTIST and int(entity.rating) != rating:
+            raise CacheVerificationError(
+                "rate verification failed for " + objectType.value + " " + str(objectId) +
+                ": set rating=" + str(rating) + " but re-fetched entity has rating=" + str(entity.rating)
+            )
+        return entity
+
+    def _getByType(self, objectType: ObjectType, objectId):
+        """Dispatch to the EXISTING single-object getter for the type — the
+        getter's write-through upsert IS the cache refresh (no new
+        persistence code for the interaction tier)."""
+        getters = {
+            ObjectType.SONG: self.getSong,
+            ObjectType.ALBUM: self.getAlbum,
+            ObjectType.ARTIST: self.getArtist,
+            ObjectType.PLAYLIST: self.getPlaylist,
+        }
+        return getters[objectType](objectId)
 
     def _fetchAllPages(self, action, params, listKey):
         """The one place list-method pagination lives (CONVENTIONS: implement

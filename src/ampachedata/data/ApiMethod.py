@@ -21,3 +21,5 @@ class ApiMethod(str, Enum):
     STATS = "stats"
     STREAM = "stream"
     DOWNLOAD = "download"
+    FLAG = "flag"
+    RATE = "rate"

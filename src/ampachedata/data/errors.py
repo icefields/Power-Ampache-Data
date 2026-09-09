@@ -15,6 +15,12 @@ class CredentialValidationError(AmpacheError):
     contain the cleartext password or the stored hash."""
 
 
+class CacheVerificationError(AmpacheError):
+    """Post-write read-back mismatch: after flag()/rate() the re-fetched
+    entity's flag/rating does not match the value just set — the server's
+    success envelope and its returned object disagree."""
+
+
 class ApiError(AmpacheError):
     """An Ampache error envelope: {'error': {'code': ..., 'message': ...}}."""
 

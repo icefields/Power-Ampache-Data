@@ -20,7 +20,7 @@ _UPSERT_SQL = "INSERT OR REPLACE INTO AlbumEntity ({}) VALUES ({})".format(
 
 _SELECT_SQL = (
     "SELECT id, name, basename, artistId, artistName, artists, time, year, "
-    "songCount, diskCount, genre, artUrl, rating, averageRating FROM AlbumEntity"
+    "songCount, diskCount, genre, artUrl, rating, averageRating, flag FROM AlbumEntity"
 )
 
 
@@ -40,6 +40,7 @@ def _toAlbum(row) -> Album:
         artUrl=row["artUrl"],
         rating=row["rating"],
         averageRating=row["averageRating"],
+        flag=bool(row["flag"]),
     )
 
 

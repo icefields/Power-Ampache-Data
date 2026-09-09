@@ -127,6 +127,16 @@ def statsAlbumPayload():
 
 
 @pytest.fixture
+def flagPayload():
+    return json.loads((EXAMPLES_DIR / "flag.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def ratePayload():
+    return json.loads((EXAMPLES_DIR / "rate.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
 def makeClient(dbPath):
     def factory(payloads):
         transport = FakeTransport(payloads)

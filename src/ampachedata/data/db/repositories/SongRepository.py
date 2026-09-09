@@ -34,7 +34,7 @@ _SELECT_SQL = (
     "artists, streamFormat, format, streamMime, publisher, "
     "replayGainTrackGain, replayGainTrackPeak, disk, diskSubtitle, mbId, "
     "comment, language, lyrics, albumMbId, artistMbId, albumArtistMbId, "
-    "averageRating, preciseRating, rating FROM SongEntity"
+    "averageRating, preciseRating, rating, flag FROM SongEntity"
 )
 
 _LIST_FROM = "SELECT song.* FROM SongEntity song"
@@ -100,6 +100,7 @@ def _toSong(row) -> Song:
         averageRating=row["averageRating"],
         preciseRating=row["preciseRating"],
         rating=row["rating"],
+        flag=bool(row["flag"]),
     )
 
 

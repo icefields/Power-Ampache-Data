@@ -19,7 +19,7 @@ _UPSERT_SQL = "INSERT OR REPLACE INTO PlaylistEntity ({}) VALUES ({})".format(
 
 _SELECT_SQL = (
     "SELECT id, name, owner, items, type, artUrl, preciseRating, rating, "
-    "averageRating FROM PlaylistEntity"
+    "averageRating, flag FROM PlaylistEntity"
 )
 
 
@@ -34,6 +34,7 @@ def _toPlaylist(row) -> Playlist:
         preciseRating=row["preciseRating"],
         rating=row["rating"],
         averageRating=row["averageRating"],
+        flag=bool(row["flag"]),
     )
 
 

@@ -1,5 +1,5 @@
 """Album domain entity. Clean names — no JSON keys, no DB-only columns
-(flag, multiUserId, searchName stay in the DB layer)."""
+(multiUserId, searchName stay in the DB layer)."""
 from dataclasses import dataclass
 
 
@@ -19,3 +19,4 @@ class Album:
     artUrl: str
     rating: int
     averageRating: float
+    flag: bool

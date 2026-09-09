@@ -1,5 +1,5 @@
 """Song domain entity. Clean names — no JSON keys, no DB-only columns
-(multiUserId, searchTitle, flag stay in the DB layer). Nullable response
+(multiUserId, searchTitle stay in the DB layer). Nullable response
 fields the mapper passes through untouched (mime, mode, publisher, the
 replaygain pair, ...) keep their nullability."""
 from dataclasses import dataclass
@@ -53,3 +53,4 @@ class Song:
     averageRating: float
     preciseRating: float
     rating: float
+    flag: bool

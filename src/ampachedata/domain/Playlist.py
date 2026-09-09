@@ -1,5 +1,5 @@
 """Playlist domain entity. Clean names — no JSON keys, no DB-only columns
-(flag, multiUserId stay in the DB layer)."""
+(multiUserId stay in the DB layer)."""
 from dataclasses import dataclass
 
 
@@ -14,3 +14,4 @@ class Playlist:
     preciseRating: float
     rating: int
     averageRating: float
+    flag: bool

@@ -1,11 +1,13 @@
 """ampachedata — public API. Anything not re-exported here is private."""
 from .data.AmpacheClient import AmpacheClient
 from .data.Bootstrap import storeCredentialsFromKey, storeCredentialsFromPassword
+from .data.ObjectType import ObjectType
 from .data.errors import (
     AccessDeniedError,
     AmpacheError,
     ApiError,
     BadRequestError,
+    CacheVerificationError,
     CredentialValidationError,
     DatabaseError,
     DeprecatedError,
@@ -38,6 +40,7 @@ __all__ = [
     "PingResult",
     "OperationResult",
     "PageResult",
+    "ObjectType",
     "storeCredentialsFromPassword",
     "storeCredentialsFromKey",
     "AmpacheError",
@@ -49,5 +52,6 @@ __all__ = [
     "DeprecatedError",
     "BadRequestError",
     "CredentialValidationError",
+    "CacheVerificationError",
     "UnknownApiError",
 ]
