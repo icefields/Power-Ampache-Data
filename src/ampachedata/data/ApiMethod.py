@@ -5,6 +5,7 @@ from enum import Enum
 class ApiMethod(str, Enum):
     HANDSHAKE = "handshake"
     PING = "ping"
+    GOODBYE = "goodbye"
     ARTISTS = "artists"
     ARTIST = "artist"
     ARTIST_ALBUMS = "artist_albums"

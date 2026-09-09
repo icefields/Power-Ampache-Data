@@ -19,9 +19,20 @@ class SessionManager:
         self._transport = transport
         self._sessionRepository = sessionRepository
         self._credentialsRepository = credentialsRepository
+        self._terminated = False
 
     def ensureSession(self) -> str:
         """Return a valid session token, handshaking first if none exists or it expired."""
+        if self._terminated:
+            # Explicit goodbye teardown. In-memory by necessity: the fixed Room
+            # schema has no column for this, and the flag is a lifecycle guard,
+            # not a credential. Without it, the empty SessionEntity row left by
+            # goodbye is indistinguishable from "never authenticated" and we
+            # would silently re-handshake here. Recovery = new AmpacheClient.
+            raise InvalidHandshakeError(
+                "session terminated by goodbye(); create a new AmpacheClient to re-authenticate",
+                ErrorCode.INVALID_HANDSHAKE,
+            )
         session = self._sessionRepository.getSession()
         if session is not None and session.auth and not isExpired(session.sessionExpire):
             return session.auth
@@ -30,6 +41,11 @@ class SessionManager:
     def reauthenticate(self) -> str:
         """Silent re-auth after a 4701. Never logs out first."""
         return self._handshake()
+
+    def terminate(self) -> None:
+        """Mark the session as explicitly destroyed via goodbye(). From now on
+        ensureSession() raises instead of silently re-handshaking."""
+        self._terminated = True
 
     def _handshake(self) -> str:
         credentials = self._credentialsRepository.getCredentials()

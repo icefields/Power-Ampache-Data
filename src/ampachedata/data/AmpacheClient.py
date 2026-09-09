@@ -5,10 +5,12 @@
 Repositories are SQL-only and never see HTTP; mappers never see SQL or domain."""
 from ..domain.Album import Album
 from ..domain.Artist import Artist
+from ..domain.OperationResult import OperationResult
 from ..domain.PingResult import PingResult
 from ..domain.Playlist import Playlist
 from ..domain.Song import Song
 from .ApiMethod import ApiMethod
+from .ErrorCode import ErrorCode
 from .StatsFilter import StatsFilter
 from .Transport import UrllibTransport
 from .auth.SessionManager import ENDPOINT_PATH, SessionManager
@@ -87,6 +89,35 @@ class AmpacheClient:
         return PingResult(
             authenticated=True, auth=session.auth, sessionExpire=session.sessionExpire, api=session.api
         )
+
+    def goodbye(self) -> OperationResult:
+        """goodbye: destroy the current session (explicit teardown).
+
+        Sends action=goodbye with the live session token via the Authorization:
+        Bearer header — never the query string. On success the SessionEntity row
+        is deleted and this client instance is marked terminated: every later
+        authenticated call on THIS instance raises InvalidHandshakeError instead
+        of silently re-handshaking. CredentialsEntity is never touched — stored
+        credentials survive, so a NEW AmpacheClient auto-handshakes on first use.
+
+        Deliberately bypasses _sendWithAuth: no ensureSession (goodbye with no
+        session must fail, not create one to destroy) and no 4701 re-auth/retry.
+        On an error response the typed error propagates and the session row is
+        left intact."""
+        credentials = self._credentialsRepository.getCredentials()
+        if credentials is None:
+            raise AmpacheError("no credentials stored in CredentialsEntity; serverUrl unknown")
+        session = self._sessionRepository.getSession()
+        if session is None or not session.auth:
+            raise InvalidHandshakeError(
+                "no active session to destroy", ErrorCode.INVALID_HANDSHAKE
+            )
+        payload = self._send(ApiMethod.GOODBYE, {}, session.auth, credentials.serverUrl)
+        raiseForError(payload)
+        self._sessionRepository.clearSession()
+        self._sessionManager.terminate()
+        self._lastPayload = payload
+        return OperationResult(success=True, message=str(payload.get("success") or ""))
 
     def getArtists(self, filter="", exact=None, add=None, update=None, include=None,
                    albumArtist=None, offset=None, limit=None, cond=None, sort=None):

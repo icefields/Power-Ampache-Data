@@ -52,6 +52,11 @@ def handshakePayload():
 
 
 @pytest.fixture
+def goodbyePayload():
+    return json.loads((EXAMPLES_DIR / "goodbye.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
 def artistsPayload():
     return json.loads((EXAMPLES_DIR / "artists.json").read_text(encoding="utf-8"))
 

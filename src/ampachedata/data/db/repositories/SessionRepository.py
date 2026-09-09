@@ -34,6 +34,12 @@ class SessionRepository:
             self._database.connection.execute("DELETE FROM SessionEntity")
             self._database.connection.execute(_UPSERT_SQL, values)
 
+    def clearSession(self) -> None:
+        """Delete the single session row (goodbye teardown). CredentialsEntity is
+        never touched — stored credentials survive so a new client can re-handshake."""
+        with self._database.connection:
+            self._database.connection.execute("DELETE FROM SessionEntity")
+
     def getSession(self):
         row = self._database.connection.execute(
             "SELECT * FROM SessionEntity LIMIT 1"

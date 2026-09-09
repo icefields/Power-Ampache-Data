@@ -1,1 +1,13 @@
-"""Success/error result type for write methods (bookmark_*, playlist_*, ...). Skeleton."""
+"""Success result type for write methods (goodbye, bookmark_*, playlist_*, ...)."""
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class OperationResult:
+    """A write method's success envelope ({"success": ...}).
+
+    Errors never appear here — raiseForError raises a typed ApiError first,
+    so a returned OperationResult always represents success."""
+
+    success: bool
+    message: str = ""

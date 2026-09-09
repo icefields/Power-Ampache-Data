@@ -17,6 +17,7 @@ from .domain.Artist import Artist
 from .domain.Album import Album
 from .domain.Credentials import Credentials
 from .domain.History import History
+from .domain.OperationResult import OperationResult
 from .domain.PingResult import PingResult
 from .domain.Playlist import Playlist
 from .domain.PlaylistSong import PlaylistSong
@@ -34,6 +35,7 @@ __all__ = [
     "Session",
     "Credentials",
     "PingResult",
+    "OperationResult",
     "storeCredentialsFromPassword",
     "storeCredentialsFromKey",
     "AmpacheError",
