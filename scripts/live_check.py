@@ -368,6 +368,46 @@ def main(argv):
     results.append(("getRecentSongs returned rows", len(recentSongs) > 0))
     results.append(("recent songs have HistoryEntity rows", bool(recentSongs) and not missing))
 
+    # --- Step 4f: getRecentAlbums (stats, type=album, filter=recent) ---------------
+    print("\n[4f] getRecentAlbums() — stats type=album filter=recent, no limit")
+    recentAlbums = client.getRecentAlbums()
+    totalCount = (client.lastPayload or {}).get("total_count")
+    print("    returned: %d album(s), envelope total_count: %s" % (len(recentAlbums), totalCount))
+
+    # Read-back is searchName-ordered (AlbumEntity has no play columns — the
+    # documented stats-album limitation), NOT by recency.
+    for album in recentAlbums[:3]:
+        print("    %s (%s, %d song(s))" % (album.name, album.year, album.songCount))
+    if len(recentAlbums) > 3:
+        last = recentAlbums[-1]
+        print("    last: %s (%s, %d song(s))" % (last.name, last.year, last.songCount))
+
+    # Presence-based verification, never count growth (pre-populated DB).
+    albumIds = [album.id for album in recentAlbums]
+    connection = sqlite3.connect(dbPath)
+    try:
+        found = {
+            row[0]
+            for row in connection.execute(
+                "SELECT id FROM AlbumEntity WHERE id IN (%s)"
+                % ",".join("?" * len(albumIds)),
+                albumIds,
+            )
+        } if albumIds else set()
+        exampleRow = connection.execute(
+            "SELECT name, year FROM AlbumEntity WHERE id = ?",
+            (recentAlbums[0].id,),
+        ).fetchone() if recentAlbums else None
+    finally:
+        connection.close()
+    missing = [album.id for album in recentAlbums if album.id not in found]
+    print("    returned albums missing from AlbumEntity: %s"
+          % (", ".join(missing) if missing else "none"))
+    if exampleRow is not None:
+        print("    example AlbumEntity row: %s (%s)" % (exampleRow[0], exampleRow[1]))
+    results.append(("getRecentAlbums returned rows", len(recentAlbums) > 0))
+    results.append(("recent albums present in AlbumEntity", bool(recentAlbums) and not missing))
+
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
     allOk = _report(results)
