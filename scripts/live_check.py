@@ -709,8 +709,8 @@ def main(argv):
     results.append(("goodbye destroyed session",
                     goodbyeOk and pingReportsUnauthenticated and authenticatedCallRaises and sessionGone))
 
-    # --- Step 5: verdict -----------------------------------------------------------
-    print("\n[5] results")
+    # --- Step 7: verdict -----------------------------------------------------------
+    print("\n[7] results")
     allOk = _report(results)
     print("\n" + ("PASS — all checks passed" if allOk else "FAIL — see above"))
     return 0 if allOk else 1
