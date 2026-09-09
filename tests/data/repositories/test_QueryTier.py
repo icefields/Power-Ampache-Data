@@ -119,9 +119,11 @@ def testListSongsOffsetWindowsAreStable(database):
     first = repository.listSongs(limit=2)
     second = repository.listSongs(limit=2, offset=2)
     third = repository.listSongs(limit=2, offset=4)
+    # searchTitle order is LEXICOGRAPHIC: Alpha, Beta, Delta, Epsilon, Gamma —
+    # not Greek-alphabet order (SQL never sorts Gamma before Delta).
     assert [s.title for s in first.rows] == ["Alpha", "Beta"]
-    assert [s.title for s in second.rows] == ["Gamma", "Delta"]
-    assert [s.title for s in third.rows] == ["Epsilon"]
+    assert [s.title for s in second.rows] == ["Delta", "Epsilon"]
+    assert [s.title for s in third.rows] == ["Gamma"]
     assert first.total == second.total == third.total == 5
 
 
