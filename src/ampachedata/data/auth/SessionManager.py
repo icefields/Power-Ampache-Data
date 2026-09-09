@@ -39,7 +39,17 @@ class SessionManager:
         return self._handshake()
 
     def reauthenticate(self) -> str:
-        """Silent re-auth after a 4701. Never logs out first."""
+        """Silent re-auth after a 4701. Never logs out first.
+
+        Expiry IS resurrected; deliberate logout is NOT — a goodbye()-terminated
+        manager raises here exactly as ensureSession() does. Unreachable today
+        (ensureSession() raises before any request goes out), but the guard
+        belongs at the re-auth entry point, not merely implied by call order."""
+        if self._terminated:
+            raise InvalidHandshakeError(
+                "session terminated by goodbye(); create a new AmpacheClient to re-authenticate",
+                ErrorCode.INVALID_HANDSHAKE,
+            )
         return self._handshake()
 
     def terminate(self) -> None:

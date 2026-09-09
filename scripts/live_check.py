@@ -807,6 +807,40 @@ def main(argv):
     # from the flag() call persisted through the rate() re-fetch.
     print("    fetched entity: flag=%s rating=%s" % (rated.flag, rated.rating))
 
+    # --- Step 5c: session auto-resurrection after expiry (stale token) -----------
+    # Placed BEFORE goodbye (step 6): it needs a live session to kill. The client
+    # keeps NO in-memory token copy — ensureSession() reads SessionEntity fresh on
+    # every call — so overwriting the row's auth IS corrupting the client's only
+    # token. The dead value keeps valid FORMAT (32 hex) but is wrong, and
+    # sessionExpire stays valid, so ensureSession() hands the dead token to the
+    # server, the server rejects it (4701), and the client must silently
+    # re-handshake from the stored credentials and retry once.
+    print("\n[5c] session auto-resurrection after expiry (stale token)")
+    session = SessionRepository(Database(dbPath)).getSession()
+    if session is None or not session.auth:
+        print("    skipped — no live session to corrupt")
+        results.append(("session auto-resurrected after expiry", False))
+    else:
+        liveToken = session.auth
+        # Same 32-hex format, guaranteed-different value: flip the first hex digit.
+        deadToken = ("0" if liveToken[0] != "0" else "1") + liveToken[1:]
+        connection = sqlite3.connect(dbPath)
+        try:
+            connection.execute("UPDATE SessionEntity SET auth = ?", (deadToken,))
+            connection.commit()
+        finally:
+            connection.close()
+        print("    session token corrupted in DB: %s... -> %s..." % (liveToken[:8], deadToken[:8]))
+        resurrected = client.getArtists(limit=1)
+        fresh = SessionRepository(Database(dbPath)).getSession()
+        freshToken = fresh.auth if fresh else ""
+        print("    getArtists(limit=1) after corruption: %d row(s) returned, no exception"
+              % len(resurrected))
+        print("    DB session token now: %s... (dead token gone: %s)"
+              % (freshToken[:8], "yes" if freshToken and freshToken != deadToken else "NO"))
+        results.append(("session auto-resurrected after expiry",
+                        len(resurrected) > 0 and bool(freshToken) and freshToken != deadToken))
+
     # --- Step 6: goodbye — session teardown --------------------------------------
     # Placed LAST: it destroys the session, so nothing after it may need auth.
     # --keep-session skips it entirely: the session (and the MPV TEST URLs

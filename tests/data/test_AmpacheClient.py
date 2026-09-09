@@ -110,6 +110,51 @@ def testHttp401TriggersReauthAndRetry(dbPath, makeClient, seedCredentials, seedS
     assert session.auth == HANDSHAKE_AUTH
 
 
+def testStaleSessionTokenAutoResurrectsOnNormalCall(dbPath, makeClient, seedCredentials,
+                                                    seedSession, handshakePayload, artistsPayload):
+    """Server-side expired token (4701) on a NORMAL call (not ping): transparent
+    resurrection — silent re-handshake from stored credentials, the original
+    request retried once with the fresh token, the DB session row replaced."""
+    seedCredentials()
+    seedSession(auth="deadbeefdeadbeefdeadbeefdeadbeef")  # valid format, wrong value
+    client, transport = makeClient([ERROR_4701, handshakePayload, artistsPayload])
+    artists = client.getArtists()
+    assert len(artists) == 4
+    assert [r["params"]["action"] for r in transport.requests] == ["artists", "handshake", "artists"]
+    assert transport.requests[0]["headers"]["Authorization"] == "Bearer deadbeefdeadbeefdeadbeefdeadbeef"
+    assert "Authorization" not in transport.requests[1]["headers"]  # handshake: no session yet
+    assert transport.requests[2]["headers"]["Authorization"] == "Bearer " + HANDSHAKE_AUTH
+    session = SessionRepository(Database(dbPath)).getSession()
+    assert session.auth == HANDSHAKE_AUTH
+
+
+def testSecond4701AfterReauthRaisesNoInfiniteRetry(dbPath, makeClient, seedCredentials,
+                                                   seedSession, handshakePayload):
+    """Retry is exactly ONCE: when the retried call ALSO returns 4701 the typed
+    error propagates — no second handshake, no loop."""
+    seedCredentials()
+    seedSession(auth="deadbeefdeadbeefdeadbeefdeadbeef")
+    client, transport = makeClient([ERROR_4701, handshakePayload, ERROR_4701])
+    with pytest.raises(InvalidHandshakeError):
+        client.ping()
+    assert [r["params"]["action"] for r in transport.requests] == ["ping", "handshake", "ping"]
+
+
+def testGoodbyeTerminatedClientDoesNotResurrect(dbPath, makeClient, seedCredentials,
+                                                seedSession, goodbyePayload):
+    """Deliberate logout is NOT resurrected: after goodbye() the same call that
+    auto-resurrects on a stale token raises instead — with ZERO network traffic
+    (ensureSession raises before any request, so no re-handshake is attempted)."""
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([goodbyePayload])
+    client.goodbye()
+    requestsBefore = len(transport.requests)
+    with pytest.raises(InvalidHandshakeError):
+        client.getArtists(limit=1)
+    assert len(transport.requests) == requestsBefore
+
+
 def testGetArtistsWriteThroughAndReadBack(dbPath, makeClient, seedCredentials, seedSession, artistsPayload):
     seedCredentials()
     seedSession()

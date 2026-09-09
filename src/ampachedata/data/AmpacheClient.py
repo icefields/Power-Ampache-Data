@@ -777,7 +777,15 @@ class AmpacheClient:
         try:
             raiseForError(payload)
         except InvalidHandshakeError:
-            # 4701: silent re-auth from stored credentials, retry ONCE. goodbye is never called.
+            # Expired-session resurrection (VERIFIED): the server rejected the
+            # token as stale/expired (4701, or HTTP 401) — silently re-handshake
+            # from the stored credentials and retry the original request exactly
+            # ONCE; a second failure propagates to the caller. The handshake's
+            # upsert replaces the single SessionEntity row, so the dead token is
+            # cleared by overwrite — deliberately no separate clearSession(): a
+            # failed handshake must not leave the row deleted. Never reached
+            # after goodbye(): terminate() makes ensureSession() raise above,
+            # BEFORE any request — deliberate logout is NOT resurrected.
             token = self._sessionManager.reauthenticate()
             payload = self._send(action, params, token, credentials.serverUrl)
             raiseForError(payload)
