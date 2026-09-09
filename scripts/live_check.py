@@ -16,7 +16,7 @@ from ampachedata import AmpacheClient
 
 USAGE = "usage: python scripts/live_check.py <path-to-musicdb.db>"
 ARTIST_LIMIT = 50
-_TABLES = ("ArtistEntity", "AlbumEntity", "SongEntity")
+_TABLES = ("ArtistEntity", "AlbumEntity", "SongEntity", "HistoryEntity")
 
 
 def _counts(dbPath):
@@ -323,6 +323,50 @@ def main(argv):
         if albumSongRows:
             print("    example in DB: %s (track %d)" % (albumSongRows[0][0], albumSongRows[0][1]))
         results.append(("album songs present in DB with matching albumId", len(albumSongRows) > 0))
+
+    # --- Step 4e: getRecentSongs (stats, filter=recent) ----------------------------
+    print("\n[4e] getRecentSongs() — stats filter=recent, no limit")
+    recentSongs = client.getRecentSongs()
+    totalCount = (client.lastPayload or {}).get("total_count")
+    print("    returned: %d song(s), envelope total_count: %s" % (len(recentSongs), totalCount))
+
+    # lastPlayed is NOT on Song — it lives on HistoryEntity (which also drives
+    # the read-back ordering). Load it keyed by mediaId for the printout.
+    connection = sqlite3.connect(dbPath)
+    try:
+        historyByMediaId = {
+            row[0]: (row[1], row[2])
+            for row in connection.execute(
+                "SELECT mediaId, playCount, lastPlayed FROM HistoryEntity"
+            ).fetchall()
+        }
+    finally:
+        connection.close()
+
+    def _printRecent(song):
+        playCount, lastPlayed = historyByMediaId.get(song.id, (song.playCount, 0))
+        iso = datetime.fromtimestamp(lastPlayed / 1000, tz=timezone.utc).isoformat()
+        print("    %s — playCount %d, lastPlayed %d (%s)"
+              % (song.title, playCount, lastPlayed, iso))
+
+    # Read-back is HistoryEntity-derived: lastPlayed DESC, most recent first.
+    for song in recentSongs[:3]:
+        _printRecent(song)
+    if len(recentSongs) > 3:
+        _printRecent(recentSongs[-1])
+
+    # Presence-based verification, never count growth (pre-populated DB).
+    missing = [song.id for song in recentSongs if song.id not in historyByMediaId]
+    print("    returned songs missing a HistoryEntity row: %s"
+          % (", ".join(missing) if missing else "none"))
+    if recentSongs:
+        exampleId = recentSongs[0].id
+        playCount, lastPlayed = historyByMediaId[exampleId]
+        iso = datetime.fromtimestamp(lastPlayed / 1000, tz=timezone.utc).isoformat()
+        print("    example HistoryEntity row: mediaId=%s playCount=%d lastPlayed=%d (%s)"
+              % (exampleId, playCount, lastPlayed, iso))
+    results.append(("getRecentSongs returned rows", len(recentSongs) > 0))
+    results.append(("recent songs have HistoryEntity rows", bool(recentSongs) and not missing))
 
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
