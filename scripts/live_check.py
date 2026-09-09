@@ -12,7 +12,9 @@ import sqlite3
 import sys
 from datetime import datetime, timezone
 
-from ampachedata import AmpacheClient
+from ampachedata import AmpacheClient, InvalidHandshakeError
+from ampachedata.data.db.Database import Database
+from ampachedata.data.db.repositories.SessionRepository import SessionRepository
 
 USAGE = "usage: python scripts/live_check.py <path-to-musicdb.db>"
 ARTIST_LIMIT = 50
@@ -664,6 +666,48 @@ def main(argv):
           % (", ".join(sorted(unsourced)) if unsourced else "none"))
     results.append(("playlist history writes all sourced from payload play data",
                     not unsourced))
+
+    # --- Step 6: goodbye — session teardown --------------------------------------
+    # Placed LAST: it destroys the session, so nothing after it may need auth.
+    print("\n[6] goodbye — session teardown")
+    goodbyeOk = False
+    pingReportsUnauthenticated = False
+    authenticatedCallRaises = False
+    try:
+        goodbyeResult = client.goodbye()
+        goodbyeOk = goodbyeResult.success
+        print("    goodbye: success=%s message=%s" % (goodbyeResult.success, goodbyeResult.message))
+    except Exception as error:
+        print("    goodbye raised: %s" % error)
+
+    # ping after teardown: no session row remains, so ping takes its anonymous
+    # path and reports authenticated=False (it does not raise).
+    try:
+        pingAfter = client.ping()
+        pingReportsUnauthenticated = not pingAfter.authenticated
+        print("    ping after goodbye: authenticated=%s" % pingAfter.authenticated)
+    except Exception as error:
+        print("    ping after goodbye raised unexpectedly: %s" % error)
+
+    # An AUTHENTICATED call after goodbye must fail with the auth error — no
+    # silent re-handshake on this client instance.
+    try:
+        client.getArtists(limit=1)
+        print("    getArtists after goodbye returned — silent re-handshake happened!")
+    except InvalidHandshakeError as error:
+        authenticatedCallRaises = True
+        print("    getArtists after goodbye raised InvalidHandshakeError: %s" % error)
+    except Exception as error:
+        print("    getArtists after goodbye raised the wrong error: %r" % error)
+
+    sessionGone = SessionRepository(Database(dbPath)).getSession() is None
+    print("    SessionEntity row after goodbye: %s" % ("<deleted>" if sessionGone else "STILL PRESENT"))
+    if goodbyeOk and pingReportsUnauthenticated and authenticatedCallRaises and sessionGone:
+        print("PASS goodbye destroyed session")
+    else:
+        print("FAIL goodbye destroyed session")
+    results.append(("goodbye destroyed session",
+                    goodbyeOk and pingReportsUnauthenticated and authenticatedCallRaises and sessionGone))
 
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
