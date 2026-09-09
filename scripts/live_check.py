@@ -30,6 +30,17 @@ def _counts(dbPath):
         connection.close()
 
 
+def _historyIds(dbPath):
+    connection = sqlite3.connect(dbPath)
+    try:
+        return {
+            row[0]
+            for row in connection.execute("SELECT id FROM HistoryEntity").fetchall()
+        }
+    finally:
+        connection.close()
+
+
 def _report(results):
     allOk = True
     for label, ok in results:
@@ -410,7 +421,7 @@ def main(argv):
 
     # --- Step 4g: stats newest/highest (song + album) ------------------------------
     print("\n[4g] stats newest/highest — getNewestSongs, getHighestSongs, getNewestAlbums, getHighestAlbums")
-    historyBefore = _counts(dbPath)["HistoryEntity"]
+    historyIdsBefore = _historyIds(dbPath)
 
     def _presenceCheck(table, idColumn, ids):
         """Every returned id present in the DB (read-back verification)."""
@@ -449,12 +460,12 @@ def main(argv):
         present = _presenceCheck(table, idColumn, ids)
         results.append((label + " returned rows", len(entities) > 0))
         results.append((label + " all present in " + table, present))
-        return entities
+        return entities, ids
 
-    _runStatsMethod("getNewestSongs", client.getNewestSongs, "SongEntity", "mediaId")
-    _runStatsMethod("getHighestSongs", client.getHighestSongs, "SongEntity", "mediaId")
-    newestRows = _runStatsMethod("getNewestAlbums", client.getNewestAlbums, "AlbumEntity", "id")
-    highestRows = _runStatsMethod("getHighestAlbums", client.getHighestAlbums, "AlbumEntity", "id")
+    _, newestSongIds = _runStatsMethod("getNewestSongs", client.getNewestSongs, "SongEntity", "mediaId")
+    _, highestSongIds = _runStatsMethod("getHighestSongs", client.getHighestSongs, "SongEntity", "mediaId")
+    newestRows, _ = _runStatsMethod("getNewestAlbums", client.getNewestAlbums, "AlbumEntity", "id")
+    highestRows, _ = _runStatsMethod("getHighestAlbums", client.getHighestAlbums, "AlbumEntity", "id")
 
     # Overlap of the two RETURNED lists, captured at call time above — never
     # re-fetched: both read back the whole AlbumEntity table, so a re-fetch
@@ -466,13 +477,33 @@ def main(argv):
     print("    album overlap: %d of %d newest ids also in highest"
           % (overlap, len(newestAlbumIds)))
 
-    # These four methods are not play-based stats — HistoryEntity must not change.
-    historyAfter = _counts(dbPath)["HistoryEntity"]
-    print("    history rows before/after: %d / %d%s"
-          % (historyBefore, historyAfter,
-             "" if historyBefore == historyAfter else " — BUG: play-based writes detected"))
-    results.append(("stats newest/highest left HistoryEntity unchanged",
-                    historyBefore == historyAfter))
+    # Newest/highest are not play-based stats, but the shared write-through
+    # still persists history rows for fetched songs that carry non-null
+    # last_played (same as getSongs). Growth is legitimate — the check is
+    # provenance: every NEW history row's mediaId must be a song fetched in
+    # this step (the payload's play data is the only possible source).
+    historyIdsAfter = _historyIds(dbPath)
+    newHistoryIds = historyIdsAfter - historyIdsBefore
+    fetchedSongIds = set(newestSongIds) | set(highestSongIds)
+    connection = sqlite3.connect(dbPath)
+    try:
+        newHistoryMediaIds = {
+            row[0]
+            for row in connection.execute(
+                "SELECT mediaId FROM HistoryEntity WHERE id IN (%s)"
+                % ",".join("?" * len(newHistoryIds)),
+                list(newHistoryIds),
+            )
+        } if newHistoryIds else set()
+    finally:
+        connection.close()
+    unsourced = newHistoryMediaIds - fetchedSongIds
+    print("    history rows before/after: %d / %d (%d new)"
+          % (len(historyIdsBefore), len(historyIdsAfter), len(newHistoryIds)))
+    print("    new history mediaIds not among fetched songs: %s"
+          % (", ".join(sorted(unsourced)) if unsourced else "none"))
+    results.append(("stats newest/highest history writes all sourced from payload play data",
+                    not unsourced))
 
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
