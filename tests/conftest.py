@@ -22,7 +22,10 @@ HANDSHAKE_AUTH = "0c45633f51b0e264a2260ebfa406e1ad"
 
 
 class FakeTransport:
-    """Queued-response Transport. Records every request; never touches the network."""
+    """Queued-response Transport. Records every request; never touches the
+    network. A queued Exception is raised instead of returned, so tests can
+    simulate transport-level failures (e.g. urllib.error.URLError) as well as
+    API error envelopes."""
 
     def __init__(self, payloads):
         self._payloads = list(payloads)
@@ -34,7 +37,13 @@ class FakeTransport:
         )
         if not self._payloads:
             raise AssertionError("FakeTransport received an unexpected request: " + url)
-        return self._payloads.pop(0)
+        payload = self._payloads.pop(0)
+        if isinstance(payload, Exception):
+            # A queued Exception is raised, not returned — lets tests simulate
+            # transport-level failures (e.g. urllib.error.URLError), not just
+            # API error envelopes.
+            raise payload
+        return payload
 
 
 @pytest.fixture
