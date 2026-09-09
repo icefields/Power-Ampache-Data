@@ -365,6 +365,76 @@ class AmpacheClient:
             self._historyRepository.upsertHistories(historyRows)
         return songs
 
+    def getRecentAlbums(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=album, filter=recent): write-through for recently played
+        albums.
+
+        LIMITATION: AlbumEntity has no play columns and HistoryEntity is
+        song-shaped, so play-derived ordering is impossible from stored
+        columns — the read-back is ordered by searchName, NOT by recency.
+        Envelope-only fields (total_count, md5) stay on lastPayload."""
+        self._getStatsAlbums(StatsFilter.RECENT, userId, username, offset, limit)
+        return self._albumRepository.getAlbums()
+
+    def getFrequentAlbums(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=album, filter=frequent): write-through for the most
+        played albums.
+
+        LIMITATION: no play data is persisted for albums (see getRecentAlbums)
+        — the read-back is ordered by searchName, NOT by play count.
+        Envelope-only fields (total_count, md5) stay on lastPayload."""
+        self._getStatsAlbums(StatsFilter.FREQUENT, userId, username, offset, limit)
+        return self._albumRepository.getAlbums()
+
+    def getForgottenAlbums(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=album, filter=forgotten): write-through for the least
+        recently played albums.
+
+        LIMITATION: no play data is persisted for albums (see getRecentAlbums)
+        — the read-back is ordered by searchName, NOT by last-played.
+        Envelope-only fields (total_count, md5) stay on lastPayload."""
+        self._getStatsAlbums(StatsFilter.FORGOTTEN, userId, username, offset, limit)
+        return self._albumRepository.getAlbums()
+
+    def getRandomAlbums(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=album, filter=random): write-through for a random album
+        list.
+
+        CONVENTIONS exception, made explicit here (same as getRandomSongs):
+        random order cannot be DB-derived, so per the 'persist, read back
+        from response' allowance the ORDER comes from the response while
+        entity data still comes only from the DB — after the write-through
+        each album is read back by id (getAlbum) in response order.
+        Envelope-only fields (total_count, md5) stay on lastPayload."""
+        albums = self._getStatsAlbums(StatsFilter.RANDOM, userId, username, offset, limit)
+        result = []
+        for album in albums:
+            readBack = self._albumRepository.getAlbum(album.get("id"))
+            if readBack is None:
+                raise AmpacheError("album " + str(album.get("id")) + " missing from DB after write-through")
+            result.append(readBack)
+        return result
+
+    def _getStatsAlbums(self, statsFilter: StatsFilter, userId=None, username=None,
+                        offset=None, limit=None):
+        """Shared write-through for the stats album family: fetch (all pages)
+        -> map (album rows) -> upsert in one transaction. Returns the raw
+        response rows so getRandomAlbums can keep response order.
+
+        NO HistoryEntity rows: mapHistory is song-shaped and AlbumEntity has
+        no play columns — play persistence is not invented here. filter is
+        ALWAYS sent explicitly (the API default is random — never inherit
+        it); limit semantics come from _fetchAllPages (no limit -> full
+        pages until total_count; explicit limit -> caller's window)."""
+        params = self._listParams(
+            type="album", filter=statsFilter.value, user_id=userId,
+            username=username, offset=offset, limit=limit,
+        )
+        albums = self._fetchAllPages(ApiMethod.STATS, params, "album")
+        rows = [mapAlbum(album) for album in albums]
+        self._albumRepository.upsertAlbums(rows)
+        return albums
+
     def _fetchAllPages(self, action, params, listKey):
         """The one place list-method pagination lives (CONVENTIONS: implement
         pagination once, reuse everywhere).
