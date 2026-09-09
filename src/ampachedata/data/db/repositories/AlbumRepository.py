@@ -5,6 +5,7 @@ Transaction semantics: upserts commit only when this call owns the transaction
 opens one with BEGIN for multi-repository write-throughs) the commit stays with
 the caller so all rows commit as ONE unit."""
 from ....domain.Album import Album
+from .LikePattern import likePattern
 
 _COLUMNS = (
     "id", "name", "basename", "artistId", "artistName", "artists", "time",
@@ -70,12 +71,37 @@ class AlbumRepository:
         return [_toAlbum(row) for row in rows]
 
     def getAlbums(self):
-        """Read-back for the albums write-through flow: every AlbumEntity row,
-        ordered by year then searchName (DB-derived ordering)."""
+        """Write-through read-back — identical to listAlbums (query tier)."""
+        return self.listAlbums()
+
+    def listAlbums(self):
+        """Query tier (DB-only, no network): every cached album, ordered by
+        year, searchName, then id (stable)."""
         rows = self._database.connection.execute(
-            _SELECT_SQL + " ORDER BY year, searchName"
+            _SELECT_SQL + " ORDER BY year, searchName, id"
         ).fetchall()
         return [_toAlbum(row) for row in rows]
+
+    def searchAlbums(self, query):
+        """Query tier (DB-only): substring search over name and searchName.
+        Literal matching (\\, %, _ escaped; LIKE ? ESCAPE '\\'); SQLite LIKE
+        is case-insensitive for ASCII only. Empty query returns []."""
+        if not query:
+            return []
+        pattern = likePattern(query)
+        rows = self._database.connection.execute(
+            _SELECT_SQL
+            + " WHERE (name LIKE ? ESCAPE '\\' OR searchName LIKE ? ESCAPE '\\')"
+            " ORDER BY year, searchName, id",
+            (pattern, pattern),
+        ).fetchall()
+        return [_toAlbum(row) for row in rows]
+
+    def albumCount(self) -> int:
+        """Query tier: number of cached AlbumEntity rows (SQL COUNT)."""
+        return self._database.connection.execute(
+            "SELECT COUNT(*) FROM AlbumEntity"
+        ).fetchone()[0]
 
     def getAlbum(self, albumId):
         """Read-back for the single-album write-through flow: the AlbumEntity

@@ -5,7 +5,9 @@ Transaction semantics: upserts commit only when this call owns the transaction
 (none open on the connection). Inside a caller-owned transaction (AmpacheClient
 opens one with BEGIN for multi-repository write-throughs) the commit stays with
 the caller so all rows commit as ONE unit."""
+from ....domain.PageResult import PageResult
 from ....domain.Song import Song
+from .LikePattern import likePattern
 
 _COLUMNS = (
     "mediaId", "title", "albumId", "albumName", "artistId", "artistName",
@@ -34,6 +36,20 @@ _SELECT_SQL = (
     "comment, language, lyrics, albumMbId, artistMbId, albumArtistMbId, "
     "averageRating, preciseRating, rating FROM SongEntity"
 )
+
+_LIST_FROM = "SELECT song.* FROM SongEntity song"
+_LIST_COUNT = "SELECT COUNT(*) FROM SongEntity song"
+_RECENT_JOIN = " LEFT JOIN HistoryEntity history ON history.mediaId = song.mediaId"
+
+# Whitelisted ORDER BY clauses for listSongs — the `order` argument is a
+# dict key, NEVER interpolated into SQL. Every clause ends in a unique
+# tiebreaker so LIMIT/OFFSET windows are stable.
+_LIST_ORDERS = {
+    "title": " ORDER BY song.searchTitle, song.mediaId",
+    "artist": " ORDER BY song.artistName, song.searchTitle, song.mediaId",
+    "album": " ORDER BY song.albumName, song.disk, song.trackNumber, song.mediaId",
+    "recent": " ORDER BY history.lastPlayed IS NULL, history.lastPlayed DESC, song.mediaId",
+}
 
 
 def _toSong(row) -> Song:
@@ -136,12 +152,16 @@ class SongRepository:
         return [_toSong(row) for row in rows]
 
     def getPlaylistSongs(self, playlistId):
-        """Read-back for the playlist_songs write-through: the playlist's
-        songs ordered by PlaylistSongEntity.position ASC — the ordering
-        contract, exactly as the payload's playlisttrack gave it — then
-        songId for a stable order among ties. Songs removed from the
-        playlist keep their join row (upsert-only, no deletion) and still
-        appear here."""
+        """Write-through read-back for playlist_songs — identical to
+        playlistSongs (query tier)."""
+        return self.playlistSongs(playlistId)
+
+    def playlistSongs(self, playlistId):
+        """Query tier (DB-only, no network): the playlist's cached songs
+        ordered by PlaylistSongEntity.position ASC — the ordering contract,
+        exactly as the payload's playlisttrack gave it — then songId for a
+        stable order among ties. Songs removed from the playlist keep their
+        join row (upsert-only, no deletion) and still appear here."""
         rows = self._database.connection.execute(
             "SELECT song.* FROM SongEntity song "
             "JOIN PlaylistSongEntity playlistSong "
@@ -151,6 +171,78 @@ class SongRepository:
             (playlistId,),
         ).fetchall()
         return [_toSong(row) for row in rows]
+
+    def listSongs(self, order="title", limit=100, offset=0,
+                  artistId=None, albumId=None) -> PageResult:
+        """Query tier (DB-only, no network): one page of cached songs.
+
+        `order` is whitelisted (a _LIST_ORDERS key, never interpolated):
+          "title"  → searchTitle, mediaId
+          "artist" → artistName, searchTitle, mediaId
+          "album"  → albumName, disk, trackNumber, mediaId
+          "recent" → HistoryEntity.lastPlayed DESC via LEFT JOIN; songs
+                     without play history sort LAST (the IS NULL expression
+                     is 0 for played, 1 for never-played), mediaId tiebreak.
+        ORDER BY is mandatory before LIMIT/OFFSET so pages are stable.
+        `total` is SQL COUNT over the filtered set — never the server's
+        total_count. Raises ValueError for an unknown `order`."""
+        if order not in _LIST_ORDERS:
+            raise ValueError(
+                "unknown song order " + repr(order) +
+                " — expected one of: " + ", ".join(sorted(_LIST_ORDERS))
+            )
+        join = _RECENT_JOIN if order == "recent" else ""
+        whereSql, args = self._songFilters(artistId, albumId)
+        connection = self._database.connection
+        total = connection.execute(_LIST_COUNT + whereSql, args).fetchone()[0]
+        rows = connection.execute(
+            _LIST_FROM + join + whereSql + _LIST_ORDERS[order] + " LIMIT ? OFFSET ?",
+            args + [limit, offset],
+        ).fetchall()
+        return PageResult(rows=[_toSong(row) for row in rows], total=total)
+
+    def searchSongs(self, query, limit=100, offset=0) -> PageResult:
+        """Query tier (DB-only): substring search over song title plus the
+        denormalized artistName/albumName columns — no joins, so songs whose
+        parent rows aren't cached yet still match.
+
+        The query matches LITERALLY (\\, %, _ escaped; LIKE ? ESCAPE '\\').
+        SQLite LIKE is case-insensitive for ASCII only — Cyrillic titles
+        match case-sensitively. Empty query returns an empty PageResult,
+        never everything. Ordered by searchTitle, mediaId so pages are
+        stable. `total` is SQL COUNT over all matches."""
+        if not query:
+            return PageResult(rows=[], total=0)
+        pattern = likePattern(query)
+        whereSql = (
+            " WHERE (song.title LIKE ? ESCAPE '\\'"
+            " OR song.artistName LIKE ? ESCAPE '\\'"
+            " OR song.albumName LIKE ? ESCAPE '\\')"
+        )
+        args = [pattern, pattern, pattern]
+        connection = self._database.connection
+        total = connection.execute(_LIST_COUNT + whereSql, args).fetchone()[0]
+        rows = connection.execute(
+            _LIST_FROM + whereSql + _LIST_ORDERS["title"] + " LIMIT ? OFFSET ?",
+            args + [limit, offset],
+        ).fetchall()
+        return PageResult(rows=[_toSong(row) for row in rows], total=total)
+
+    def songCount(self) -> int:
+        """Query tier: number of cached SongEntity rows (SQL COUNT)."""
+        return self._database.connection.execute(_LIST_COUNT).fetchone()[0]
+
+    @staticmethod
+    def _songFilters(artistId, albumId):
+        where = []
+        args = []
+        if artistId is not None:
+            where.append("song.artistId = ?")
+            args.append(artistId)
+        if albumId is not None:
+            where.append("song.albumId = ?")
+            args.append(albumId)
+        return (" WHERE " + " AND ".join(where)) if where else "", args
 
     def getSongsByLastPlayed(self, ascending=False):
         """Read-back for the stats recent/forgotten write-throughs: songs with

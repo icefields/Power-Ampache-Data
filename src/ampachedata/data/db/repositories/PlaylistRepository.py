@@ -5,6 +5,7 @@ Transaction semantics: upserts commit only when this call owns the transaction
 opens one with BEGIN for multi-repository write-throughs) the commit stays with
 the caller so all rows commit as ONE unit."""
 from ....domain.Playlist import Playlist
+from .LikePattern import likePattern
 
 _COLUMNS = (
     "id", "name", "owner", "items", "type", "artUrl", "flag",
@@ -52,13 +53,37 @@ class PlaylistRepository:
             connection.commit()
 
     def getPlaylists(self):
-        """Read-back for the playlists write-through flow: every PlaylistEntity
-        row, ordered by (name, id) — PlaylistEntity has no searchName column,
-        so plain name it is; id breaks ties for a stable order."""
+        """Write-through read-back — identical to listPlaylists (query tier)."""
+        return self.listPlaylists()
+
+    def listPlaylists(self):
+        """Query tier (DB-only, no network): every cached playlist, ordered
+        by name then id. PlaylistEntity has no searchName column and the
+        schema is read-only — plain name it is; id breaks ties."""
         rows = self._database.connection.execute(
             _SELECT_SQL + " ORDER BY name, id"
         ).fetchall()
         return [_toPlaylist(row) for row in rows]
+
+    def searchPlaylists(self, query):
+        """Query tier (DB-only): substring search over name (no searchName
+        column exists on PlaylistEntity). Literal matching (\\, %, _
+        escaped; LIKE ? ESCAPE '\\'); SQLite LIKE is case-insensitive for
+        ASCII only. Empty query returns []."""
+        if not query:
+            return []
+        pattern = likePattern(query)
+        rows = self._database.connection.execute(
+            _SELECT_SQL + " WHERE name LIKE ? ESCAPE '\\' ORDER BY name, id",
+            (pattern,),
+        ).fetchall()
+        return [_toPlaylist(row) for row in rows]
+
+    def playlistCount(self) -> int:
+        """Query tier: number of cached PlaylistEntity rows (SQL COUNT)."""
+        return self._database.connection.execute(
+            "SELECT COUNT(*) FROM PlaylistEntity"
+        ).fetchone()[0]
 
     def getPlaylist(self, playlistId):
         """Read-back for the single-playlist write-through flow: the

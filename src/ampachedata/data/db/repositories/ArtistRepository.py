@@ -5,6 +5,7 @@ Transaction semantics: upserts commit only when this call owns the transaction
 opens one with BEGIN for multi-repository write-throughs) the commit stays with
 the caller so all rows commit as ONE unit."""
 from ....domain.Artist import Artist
+from .LikePattern import likePattern
 
 _COLUMNS = (
     "id", "name", "albumCount", "songCount", "genre", "artUrl", "flag",
@@ -53,10 +54,37 @@ class ArtistRepository:
             connection.commit()
 
     def getArtists(self):
+        """Write-through read-back — identical to listArtists (query tier)."""
+        return self.listArtists()
+
+    def listArtists(self):
+        """Query tier (DB-only, no network): every cached artist, ordered by
+        searchName then id (stable)."""
         rows = self._database.connection.execute(
-            _SELECT_SQL + " ORDER BY searchName"
+            _SELECT_SQL + " ORDER BY searchName, id"
         ).fetchall()
         return [_toArtist(row) for row in rows]
+
+    def searchArtists(self, query):
+        """Query tier (DB-only): substring search over name and searchName.
+        Literal matching (\\, %, _ escaped; LIKE ? ESCAPE '\\'); SQLite LIKE
+        is case-insensitive for ASCII only. Empty query returns []."""
+        if not query:
+            return []
+        pattern = likePattern(query)
+        rows = self._database.connection.execute(
+            _SELECT_SQL
+            + " WHERE (name LIKE ? ESCAPE '\\' OR searchName LIKE ? ESCAPE '\\')"
+            " ORDER BY searchName, id",
+            (pattern, pattern),
+        ).fetchall()
+        return [_toArtist(row) for row in rows]
+
+    def artistCount(self) -> int:
+        """Query tier: number of cached ArtistEntity rows (SQL COUNT)."""
+        return self._database.connection.execute(
+            "SELECT COUNT(*) FROM ArtistEntity"
+        ).fetchone()[0]
 
     def getArtist(self, artistId):
         """Read-back for the write-through flow. None if the row is missing —
