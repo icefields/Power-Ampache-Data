@@ -449,17 +449,22 @@ def main(argv):
         present = _presenceCheck(table, idColumn, ids)
         results.append((label + " returned rows", len(entities) > 0))
         results.append((label + " all present in " + table, present))
+        return entities
 
     _runStatsMethod("getNewestSongs", client.getNewestSongs, "SongEntity", "mediaId")
     _runStatsMethod("getHighestSongs", client.getHighestSongs, "SongEntity", "mediaId")
-    _runStatsMethod("getNewestAlbums", client.getNewestAlbums, "AlbumEntity", "id")
-    _runStatsMethod("getHighestAlbums", client.getHighestAlbums, "AlbumEntity", "id")
+    newestRows = _runStatsMethod("getNewestAlbums", client.getNewestAlbums, "AlbumEntity", "id")
+    highestRows = _runStatsMethod("getHighestAlbums", client.getHighestAlbums, "AlbumEntity", "id")
 
-    # Overlap: near-total overlap means the server ignores the filter.
-    newestAlbumIds = {a.id for a in client.getNewestAlbums()}
-    highestAlbumIds = {a.id for a in client.getHighestAlbums()}
-    overlap = newestAlbumIds & highestAlbumIds
-    print("    album newest/highest overlap: %d ids in common" % len(overlap))
+    # Overlap of the two RETURNED lists, captured at call time above — never
+    # re-fetched: both read back the whole AlbumEntity table, so a re-fetch
+    # after the highest upsert would compare the table against itself.
+    # Near-total overlap means the server ignores the filter.
+    newestAlbumIds = {album.id for album in newestRows}
+    highestAlbumIds = {album.id for album in highestRows}
+    overlap = len(newestAlbumIds & highestAlbumIds)
+    print("    album overlap: %d of %d newest ids also in highest"
+          % (overlap, len(newestAlbumIds)))
 
     # These four methods are not play-based stats — HistoryEntity must not change.
     historyAfter = _counts(dbPath)["HistoryEntity"]
