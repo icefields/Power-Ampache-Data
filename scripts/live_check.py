@@ -408,6 +408,48 @@ def main(argv):
     results.append(("getRecentAlbums returned rows", len(recentAlbums) > 0))
     results.append(("recent albums present in AlbumEntity", bool(recentAlbums) and not missing))
 
+    # --- Step 4g: stats newest/highest (song + album) ------------------------------
+    print("\n[4g] stats newest/highest — getNewestSongs, getHighestSongs, getNewestAlbums, getHighestAlbums")
+
+    def _presenceCheck(table, idColumn, ids):
+        """Every returned id present in the DB (read-back verification)."""
+        if not ids:
+            return False
+        connection = sqlite3.connect(dbPath)
+        try:
+            found = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT " + idColumn + " FROM " + table + " WHERE " + idColumn
+                    + " IN (%s)" % ",".join("?" * len(ids)),
+                    ids,
+                )
+            }
+        finally:
+            connection.close()
+        missing = [i for i in ids if i not in found]
+        if missing:
+            print("    missing from %s: %s" % (table, ", ".join(missing)))
+        return not missing
+
+    def _runStatsMethod(label, method, table, idColumn):
+        """Call one stats method, print count vs envelope total_count, presence-check."""
+        entities = method()
+        totalCount = (client.lastPayload or {}).get("total_count")
+        print("    %s: %d returned, envelope total_count: %s" % (label, len(entities), totalCount))
+        if entities:
+            print("    first: %s (id %s)" % (entities[0].name if hasattr(entities[0], "name") else entities[0].title, entities[0].id))
+            print("    last:  %s (id %s)" % (entities[-1].name if hasattr(entities[-1], "name") else entities[-1].title, entities[-1].id))
+        ids = [e.id for e in entities]
+        present = _presenceCheck(table, idColumn, ids)
+        results.append((label + " returned rows", len(entities) > 0))
+        results.append((label + " all present in " + table, present))
+
+    _runStatsMethod("getNewestSongs", client.getNewestSongs, "SongEntity", "mediaId")
+    _runStatsMethod("getHighestSongs", client.getHighestSongs, "SongEntity", "mediaId")
+    _runStatsMethod("getNewestAlbums", client.getNewestAlbums, "AlbumEntity", "id")
+    _runStatsMethod("getHighestAlbums", client.getHighestAlbums, "AlbumEntity", "id")
+
     # --- Step 5: verdict -----------------------------------------------------------
     print("\n[5] results")
     allOk = _report(results)
