@@ -134,3 +134,28 @@ class SongRepository:
             (artistId,),
         ).fetchall()
         return [_toSong(row) for row in rows]
+
+    def getSongsByLastPlayed(self, ascending=False):
+        """Read-back for the stats recent/forgotten write-throughs: songs with
+        play history ordered by HistoryEntity.lastPlayed — DESC (default) =
+        recent, most recent first; ASC = forgotten, least recently played
+        first — then mediaId for a stable order among ties. Never-played songs
+        have no HistoryEntity row and never appear here."""
+        order = "ASC" if ascending else "DESC"
+        rows = self._database.connection.execute(
+            "SELECT song.* FROM SongEntity song JOIN HistoryEntity history "
+            "ON history.mediaId = song.mediaId "
+            "ORDER BY history.lastPlayed " + order + ", song.mediaId"
+        ).fetchall()
+        return [_toSong(row) for row in rows]
+
+    def getSongsByPlayCount(self):
+        """Read-back for the stats frequent write-through: songs with play
+        history ordered by HistoryEntity.playCount DESC (most played first),
+        then mediaId for a stable order among ties."""
+        rows = self._database.connection.execute(
+            "SELECT song.* FROM SongEntity song JOIN HistoryEntity history "
+            "ON history.mediaId = song.mediaId "
+            "ORDER BY history.playCount DESC, song.mediaId"
+        ).fetchall()
+        return [_toSong(row) for row in rows]

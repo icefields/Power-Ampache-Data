@@ -8,6 +8,7 @@ from ..domain.Artist import Artist
 from ..domain.PingResult import PingResult
 from ..domain.Song import Song
 from .ApiMethod import ApiMethod
+from .StatsFilter import StatsFilter
 from .Transport import UrllibTransport
 from .auth.SessionManager import ENDPOINT_PATH, SessionManager
 from .db.Database import Database
@@ -283,6 +284,86 @@ class AmpacheClient:
             self._songRepository.upsertSongs(songRows)
             self._historyRepository.upsertHistories(historyRows)
         return self._songRepository.getArtistSongs(artistId)
+
+    def getRecentSongs(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=song, filter=recent): write-through for recently played
+        songs.
+
+        fetch -> map (song rows + HistoryEntity rows for played songs only;
+        null last_played maps to None and is dropped) -> upsert BOTH in one
+        transaction -> read back from the DB only: ALL songs with play
+        history, HistoryEntity.lastPlayed DESC (most recent first).
+        Never-played songs have no HistoryEntity row and never appear in the
+        read-back. Envelope-only fields (total_count, md5) are not persisted —
+        reach them via lastPayload."""
+        self._getStatsSongs(StatsFilter.RECENT, userId, username, offset, limit)
+        return self._songRepository.getSongsByLastPlayed()
+
+    def getFrequentSongs(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=song, filter=frequent): write-through for the most
+        played songs.
+
+        fetch -> map (song rows + HistoryEntity rows for played songs only)
+        -> upsert BOTH in one transaction -> read back from the DB only: ALL
+        songs with play history, HistoryEntity.playCount DESC (most played
+        first). Envelope-only fields (total_count, md5) are not persisted —
+        reach them via lastPayload."""
+        self._getStatsSongs(StatsFilter.FREQUENT, userId, username, offset, limit)
+        return self._songRepository.getSongsByPlayCount()
+
+    def getForgottenSongs(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=song, filter=forgotten): write-through for the least
+        recently played songs.
+
+        fetch -> map (song rows + HistoryEntity rows for played songs only)
+        -> upsert BOTH in one transaction -> read back from the DB only: ALL
+        songs with play history, HistoryEntity.lastPlayed ASC (least recently
+        played first). Envelope-only fields (total_count, md5) are not
+        persisted — reach them via lastPayload."""
+        self._getStatsSongs(StatsFilter.FORGOTTEN, userId, username, offset, limit)
+        return self._songRepository.getSongsByLastPlayed(ascending=True)
+
+    def getRandomSongs(self, userId=None, username=None, offset=None, limit=None):
+        """stats (type=song, filter=random): write-through for a random song
+        list.
+
+        CONVENTIONS exception, made explicit here: random order cannot be
+        DB-derived, so per the 'persist, read back from response' allowance
+        the ORDER comes from the response while entity data still comes only
+        from the DB — after the write-through each song is read back by id
+        (getSong) in response order. Envelope-only fields (total_count, md5)
+        are not persisted — reach them via lastPayload."""
+        songs = self._getStatsSongs(StatsFilter.RANDOM, userId, username, offset, limit)
+        result = []
+        for song in songs:
+            readBack = self._songRepository.getSong(song.get("id"))
+            if readBack is None:
+                raise AmpacheError("song " + str(song.get("id")) + " missing from DB after write-through")
+            result.append(readBack)
+        return result
+
+    def _getStatsSongs(self, statsFilter: StatsFilter, userId=None, username=None,
+                       offset=None, limit=None):
+        """Shared write-through for the stats song family: fetch (all pages)
+        -> map (song rows + HistoryEntity rows for played songs only; null
+        last_played maps to None and is dropped) -> upsert BOTH in one
+        transaction. Returns the raw response rows so each public method can
+        apply its own read-back (random keeps response order — see
+        getRandomSongs)."""
+        params = self._listParams(
+            type="song", filter=statsFilter.value, user_id=userId,
+            username=username, offset=offset, limit=limit,
+        )
+        songs = self._fetchAllPages(ApiMethod.STATS, params, "song")
+        songRows = [mapSong(song) for song in songs]
+        historyRows = [row for row in (mapHistory(song) for song in songs) if row is not None]
+        connection = self._database.connection
+        with connection:
+            if not connection.in_transaction:
+                connection.execute("BEGIN")  # transaction owner — see getArtist
+            self._songRepository.upsertSongs(songRows)
+            self._historyRepository.upsertHistories(historyRows)
+        return songs
 
     def _fetchAllPages(self, action, params, listKey):
         """The one place list-method pagination lives (CONVENTIONS: implement
