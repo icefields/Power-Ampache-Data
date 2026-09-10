@@ -41,14 +41,33 @@ class UrllibTransport:
             # as the code, so raiseForError can map them (401/403 ->
             # InvalidHandshakeError, which drives AmpacheClient's silent
             # re-auth + single retry). A body that already IS a JSON error
-            # envelope passes through unchanged — the server's own code wins.
-            # Raw HTTP errors never leak past data/.
+            # envelope passes through unchanged — the server's own code wins;
+            # spec-shaped envelopes (errorCode/errorMessage keys) are
+            # normalized to code/message first. Raw HTTP errors never leak
+            # past data/.
             errorBody = error.read().decode("utf-8", "replace")
             try:
                 payload = json.loads(errorBody)
             except ValueError:
                 payload = None
             if isinstance(payload, dict) and "error" in payload:
+                errorObject = payload["error"]
+                if (isinstance(errorObject, dict) and "code" not in errorObject
+                        and "errorCode" in errorObject):
+                    # Spec-shaped envelope: errorCode/errorMessage keys, the
+                    # code as a STRING — e.g. HTTP 401 carrying
+                    # {'error': {'errorCode': '4701', 'errorMessage':
+                    # 'Session Expired'}} on a stale session token. Normalize
+                    # to code/message so raiseForError's int() coercion can
+                    # map it ('4701' -> InvalidHandshakeError -> silent
+                    # re-auth + one retry). The code stays a string here —
+                    # raiseForError owns the int coercion.
+                    return {
+                        "error": {
+                            "code": errorObject["errorCode"],
+                            "message": errorObject.get("errorMessage") or "",
+                        }
+                    }
                 return payload
             message = errorBody.strip() or str(error.reason)
             if len(message) > 200:

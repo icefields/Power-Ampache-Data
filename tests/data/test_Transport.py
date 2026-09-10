@@ -91,3 +91,20 @@ def testJsonErrorEnvelopeBodyPassesThroughUnchanged(monkeypatch):
     with pytest.raises(InvalidHandshakeError) as excinfo:
         raiseForError(payload)
     assert excinfo.value.code == 4701
+
+
+def testHttp401WithStringErrorCodeEnvelopeIsNormalized(monkeypatch):
+    """A spec-shaped envelope (errorCode/errorMessage keys, the code as a
+    STRING) on a non-2xx answer is normalized to code/message so
+    raiseForError's int() coercion can map it: '4701' -> InvalidHandshakeError,
+    driving AmpacheClient's silent re-auth + single retry. This is the live
+    server's stale-token answer: HTTP 401 carrying errorCode '4701'."""
+    envelope = json.dumps(
+        {"error": {"errorCode": "4701", "errorMessage": "Session Expired"}}
+    ).encode("utf-8")
+    _patchUlopen(monkeypatch, _httpError(401, "Unauthorized", envelope))
+    payload = UrllibTransport().send("GET", URL, {}, {})
+    assert payload == {"error": {"code": "4701", "message": "Session Expired"}}
+    with pytest.raises(InvalidHandshakeError) as excinfo:
+        raiseForError(payload)
+    assert excinfo.value.code == 4701
