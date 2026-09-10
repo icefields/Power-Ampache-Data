@@ -1,6 +1,6 @@
 # CONVENTIONS.md — Ampache Client Library
 
-Read this before writing any code. These rules override Aider's defaults.
+Read this before writing any code. These rules are binding for this project.
 
 ## Project Goal
 
@@ -224,7 +224,7 @@ Binary/streaming methods (media) return raw bytes/stream handles, not JSON.
   — no live server in unit tests.
 - Auth test: verify SHA256 composition against a known-good vector.
 
-## Aider Ground Rules
+## Ground Rules
 
 - `ampache-api-json-methods.md` and `examples/` are READ-ONLY reference
   material. Never edit, never "fix", never reformat them.

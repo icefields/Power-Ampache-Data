@@ -11,8 +11,10 @@ __pycache__/
 *.key
 secrets/
 .aider*
+CONVENTIONS.md
+aider-ampache-tutorial.md
 
-# Packaging artifacts (generated — never commit)
+# Packaging artifacts
 *.egg-info/
 build/
 dist/
