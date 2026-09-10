@@ -2,7 +2,7 @@
 
 **Client library for the Ampache JSON API with a SQLite write-through data layer.**
 
-Every API response is persisted to SQLite first, then read back — the database is
+Every API response is persisted to SQLite first, then read back - the database is
 the single source of truth, and callers never receive raw server payloads.
 Zero runtime dependencies, stdlib only (pure Python + `sqlite3`).
 
@@ -14,7 +14,7 @@ Zero runtime dependencies, stdlib only (pure Python + `sqlite3`).
 ## Requirements
 
 - Python **3.11+**
-- An existing SQLite database with the schema (see below — the library never
+- An existing SQLite database with the schema (see below - the library never
   creates or alters schema, by design)
 
 ## Installation
@@ -40,7 +40,7 @@ pip install -e .
 ## Quick start
 
 **1. Create the database** (one time). The library deliberately never creates
-schema — you own the file. Build it from the repository's schema:
+schema - you own the file. Build it from the repository's schema:
 
 ```python
 import sqlite3
@@ -51,7 +51,7 @@ conn.close()
 ```
 
 (`docs/schema.sql` lives in the
-[repository](https://github.com/icefields/Power-Ampache-Data/blob/main/docs/schema.sql) —
+[repository](https://github.com/icefields/Power-Ampache-Data/blob/main/docs/schema.sql) -
 it is not shipped inside the package.)
 
 **2. Store credentials** (one time per user/server). The cleartext password is
@@ -68,7 +68,7 @@ storeCredentialsFromPassword(
 )
 ```
 
-Or use the CLI (hidden prompt, stdin, or env var — no `--password` flag, so
+Or use the CLI (hidden prompt, stdin, or env var - no `--password` flag, so
 cleartext never lands in argv or shell history):
 
 ```bash
@@ -82,7 +82,7 @@ If you already hold a pre-hashed Ampache API key (64 lowercase hex chars), use
 `storeCredentialsFromKey` or the `--key-stdin` / `--key` flags instead.
 
 **3. Use the client.** The first authenticated call triggers the handshake
-from the stored credentials automatically — no explicit login step:
+from the stored credentials automatically - no explicit login step:
 
 ```python
 from ampachedata import AmpacheClient
@@ -98,7 +98,7 @@ songs = client.getSongs(filter="Supernaut", exact=1)
 # Build a playable URL (no network call, nothing persisted)
 url = client.getStreamUrl(songs[0].id, stats=0)
 
-# Done for this session — tears down the server session cleanly
+# Done for this session - tears down the server session cleanly
 client.goodbye()
 ```
 
@@ -117,7 +117,7 @@ client.goodbye()
 
 - **Network layer** (`AmpacheClient`): every library-data fetch persists the
   response to SQLite *first*, then returns typed entities read back from the
-  database — never raw JSON. (The media-URL builders are pure string builders:
+  database - never raw JSON. (The media-URL builders are pure string builders:
   no network, no DB write. `ping` without a stored session is an anonymous
   probe that persists nothing.)
 - **Offline layer** (repositories): query what has been cached. Zero network.
@@ -129,11 +129,11 @@ intended cold-cache model, not a bug.
 
 ## AmpacheClient reference
 
-Constructed as `AmpacheClient(dbPath, transport=None)` — `transport` is
+Constructed as `AmpacheClient(dbPath, transport=None)` - `transport` is
 an optional HTTP transport injection seam (used by the test suite; the
 default is a stdlib urllib transport).
 
-All list methods auto-paginate server-side (loop until short page) — you never
+All list methods auto-paginate server-side (loop until short page) - you never
 page by hand. Entity ids are strings throughout; returned entities are
 immutable frozen dataclasses with clean field names (no JSON keys, no DB-only
 columns).
@@ -141,14 +141,14 @@ columns).
 > **Unfiltered list calls sync everything.** `getSongs()` with no `filter` and
 > no `limit` fetches the *entire server library* into your DB in one call
 > (same for `getArtists()`, `getAlbums()`, …). That is the intended
-> write-through sync behavior — but be deliberate about it.
+> write-through sync behavior - but be deliberate about it.
 
 ### Session & health
 
 | Method | Returns | Notes |
 |---|---|---|
-| `ping()` | `PingResult` | Health check: `authenticated`, `api`, `server`, `version`, `sessionExpire`. Some servers answer `authenticated` optimistically — don't rely on ping as a session probe. |
-| `goodbye()` | `OperationResult` | Tears down the server session and deletes the persisted token. After goodbye, **authenticated calls raise `InvalidHandshakeError`** (no resurrection on this instance) — but `ping()` falls back to anonymous mode and returns `authenticated=False`. Create a new `AmpacheClient` to re-auth. |
+| `ping()` | `PingResult` | Health check: `authenticated`, `api`, `server`, `version`, `sessionExpire`. Some servers answer `authenticated` optimistically - don't rely on ping as a session probe. |
+| `goodbye()` | `OperationResult` | Tears down the server session and deletes the persisted token. After goodbye, **authenticated calls raise `InvalidHandshakeError`** (no resurrection on this instance) - but `ping()` falls back to anonymous mode and returns `authenticated=False`. Create a new `AmpacheClient` to re-auth. |
 | `lastPayload` (property) | `dict` or `None` | The raw envelope of the last call (informational: `total_count`, `md5`, …). |
 
 Sessions persist across restarts and process kills (the token lives in the DB).
@@ -160,7 +160,7 @@ and retries **once**; a second failure raises `InvalidHandshakeError`.
 | Method | Returns |
 |---|---|
 | `getArtists(filter="", exact=None, add=None, update=None, include=None, albumArtist=None, offset=None, limit=None, cond=None, sort=None)` | `list[Artist]` |
-| `getArtist(filter, include=None)` | `Artist` — `include="albums,songs"` upserts nested rows |
+| `getArtist(filter, include=None)` | `Artist` - `include="albums,songs"` upserts nested rows |
 
 ### Albums
 
@@ -181,7 +181,7 @@ and retries **once**; a second failure raises `InvalidHandshakeError`.
 
 > `cond` and `sort` are **string** parameters, passed through to the server
 > verbatim (`cond` is a `;`-separated filter string per the Ampache API;
-> anything you pass is stringified into the query — build the string
+> anything you pass is stringified into the query - build the string
 > yourself). Power-user parameters; everything else is the common case.
 
 ### Stats (play-derived)
@@ -203,34 +203,34 @@ All take `(userId=None, username=None, offset=None, limit=None)`.
 |---|---|
 | `getPlaylists(filter="", hideSearch=None, showDupes=None, exact=None, add=None, update=None, offset=None, limit=None, cond=None, sort=None)` | `list[Playlist]` |
 | `getPlaylist(filter)` | `Playlist` |
-| `getSongsFromPlaylist(playlistId, random=None, offset=None, limit=None)` | `list[Song]` — order matches the server's playlist positions exactly (no renumbering) |
+| `getSongsFromPlaylist(playlistId, random=None, offset=None, limit=None)` | `list[Song]` - order matches the server's playlist positions exactly (no renumbering) |
 
 ### Media URLs
 
 | Method | Returns | Notes |
 |---|---|---|
 | `getStreamUrl(songId, format=None, bitrate=None, offset=None, stats=None)` | `str` | Pure URL builder: no network, no DB write. Song-only per API spec. |
-| `getDownloadUrl(songId, format=None, bitrate=None, stats=None)` | `str` | Same — download flavor. |
+| `getDownloadUrl(songId, format=None, bitrate=None, stats=None)` | `str` | Same - download flavor. |
 
-The URLs embed the live session token **as a query parameter** — treat them
+The URLs embed the live session token **as a query parameter** - treat them
 as secrets: don't log them, share them, or paste them into bug reports.
 The library never logs or stores built URLs. Pass `stats=0` for any fetch that is not
-a real user play (preloading, probing, artwork) — otherwise the server records a
+a real user play (preloading, probing, artwork) - otherwise the server records a
 play and pollutes play counts.
 
 ### Interactions (mutate server state)
 
 | Method | Returns | Notes |
 |---|---|---|
-| `flag(objectType, objectId, flagged)` | the re-fetched, refreshed entity | Applies, re-fetches via the type's getter, upserts, verifies — raises `CacheVerificationError` on mismatch. |
-| `rate(objectType, objectId, rating)` | the re-fetched, refreshed entity | `rating` validated locally as 0–5 **before any network call — out of range raises plain `ValueError`**, not an `AmpacheError`. Same verify discipline. |
+| `flag(objectType, objectId, flagged)` | the re-fetched, refreshed entity | Applies, re-fetches via the type's getter, upserts, verifies - raises `CacheVerificationError` on mismatch. |
+| `rate(objectType, objectId, rating)` | the re-fetched, refreshed entity | `rating` validated locally as 0–5 **before any network call - out of range raises plain `ValueError`**, not an `AmpacheError`. Same verify discipline. |
 
 `objectType` accepts an `ObjectType` enum member or its plain string value
 (`"song"`, `"album"`, `"artist"`, `"playlist"`).
 
 ## Offline query tier
 
-Import `Database` plus the repositories and read what's cached — no network,
+Import `Database` plus the repositories and read what's cached - no network,
 no handshake needed:
 
 ```python
@@ -244,12 +244,12 @@ page = songs.listSongs(order="recent", limit=100, offset=0)
 print(len(page.rows), "of", page.total)      # total = honest SQL COUNT
 
 hits = songs.searchSongs("Supernaut")         # LIKE search, % and _ are
-                                              # escaped — input is literal
+                                              # escaped - input is literal
 byName = artists.searchArtists("megadeth")    # case-insensitive (ASCII)
 ```
 
 `PageResult` carries `rows` and `total`; `total` is the SQL COUNT over the full
-filtered set — unlike server envelopes, it never lies, so you can compute page
+filtered set - unlike server envelopes, it never lies, so you can compute page
 counts reliably.
 
 | Repository | Read methods |
@@ -260,9 +260,9 @@ counts reliably.
 | `PlaylistRepository` | `listPlaylists()`, `searchPlaylists(query)`, `playlistCount()`, `getPlaylist(playlistId)`, `getPlaylists()` |
 
 `order` for `listSongs` is one of `"title"`, `"artist"`, `"album"`, `"recent"`
-(whitelisted — arbitrary SQL cannot be injected).
+(whitelisted - arbitrary SQL cannot be injected).
 
-Case-insensitive search is ASCII-only (e.g. Cyrillic matches case-sensitively) —
+Case-insensitive search is ASCII-only (e.g. Cyrillic matches case-sensitively) -
 that is SQLite `LIKE` semantics, documented rather than worked around.
 
 ## Errors
@@ -276,7 +276,7 @@ AmpacheError
 ├── CredentialValidationError    # bootstrap input failed validation
 ├── CacheVerificationError       # post-flag/rate read-back mismatch
 └── ApiError                     # Ampache error envelope
-    ├── InvalidHandshakeError     # 4701 / HTTP 401/403 — triggers auto re-auth (except after goodbye)
+    ├── InvalidHandshakeError     # 4701 / HTTP 401/403 - triggers auto re-auth (except after goodbye)
     ├── AccessDeniedError         # 4703
     ├── NotFoundError             # 4704
     ├── DeprecatedError           # 4706
@@ -290,26 +290,26 @@ cleartext password or the stored hash.
 ## Best practices
 
 - **Let the library own writes.** All upserts (history, playlist positions,
-  ratings) derive from server payloads — never write entity rows by hand.
-- **Don't trust server `total_count` envelopes** — some Ampache builds report
+  ratings) derive from server payloads - never write entity rows by hand.
+- **Don't trust server `total_count` envelopes** - some Ampache builds report
   stale/wrong counts. The client auto-paginates until a short page; for offline
   paging use `PageResult.total` instead.
 - **Pass `stats=0` on non-playback media fetches** so plays aren't recorded.
-- **Treat built stream/download URLs as secrets** — they embed the live
+- **Treat built stream/download URLs as secrets** - they embed the live
   session token as a query parameter.
-- **Call `goodbye()` when done** — it's the clean logout, and it deletes the
+- **Call `goodbye()` when done** - it's the clean logout, and it deletes the
   stored session token. Reuse one client per session rather than one per call.
-- **Create the client fresh after `goodbye()`** — a post-goodbye client raises
+- **Create the client fresh after `goodbye()`** - a post-goodbye client raises
   `InvalidHandshakeError` by design (no resurrection).
 - **Exact filters with special characters** (`?`, `%`, `_`) can behave
   inconsistently on some servers; prefer narrow, plain-text filters.
-- **Songs removed from a playlist stay in the cache** — playlist join rows are
+- **Songs removed from a playlist stay in the cache** - playlist join rows are
   upsert-only (no deletion), so offline reads keep showing them until the
   server's next payload omits them.
-- **Not thread-safe** — the client holds one SQLite connection (sqlite3's
+- **Not thread-safe** - the client holds one SQLite connection (sqlite3's
   default `check_same_thread` behavior); using one client instance across
   threads raises. Create one client per thread.
-- **Keep the DB per-user** — history rows are keyed by user + media id.
+- **Keep the DB per-user** - history rows are keyed by user + media id.
 
 ## Server compatibility
 
@@ -321,7 +321,7 @@ supported.
 
 ## License
 
-[GPL-3.0-only](LICENSE) — the full license text ships in the sdist and wheel.
+[GPL-3.0-only](LICENSE) - the full license text ships in the sdist and wheel.
 
 ## Links
 
