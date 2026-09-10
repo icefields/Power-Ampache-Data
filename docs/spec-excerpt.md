@@ -867,3 +867,104 @@ Destroy a session using the auth parameter.
 
 [Example](examples/goodbye.json)
 
+### download[​](#download "Direct link to download")
+
+Downloads a given media file. set format=raw to download the full file
+
+**NOTE** search and playlist will only download a random object from the list
+
+**NOTE** `filter` is available in Ampache 7.9.0 and higher. `id` is deprecated and will be removed in **API9**.
+
+| Input | Type | Description | Optional |
+|----|----|----|---:|
+| 'filter' | string | \$object_id | NO |
+| 'type' | string | `song`, `podcast_episode`, `search`, `playlist` | NO |
+| 'bitrate' | integer | max bitrate for transcoding in bytes (e.g 192000=192Kb) | YES |
+| 'format' | string | `mp3`, `ogg`, `raw`, etc (raw returns the original format) | YES |
+| 'stats' | boolean | `0`, `1`, if false disable stat recording when playing the object (default: 1) | YES |
+
+- return file (HTTP 200 OK)
+- throws (HTTP 400 Bad Request)
+- throws (HTTP 404 Not Found)
+
+### stream[​](#stream "Direct link to stream")
+
+Streams a given media file. Takes the file id in parameter with optional max bit rate, file format, time offset, size and estimate content length option.
+
+**NOTE** search and playlist will only stream a random object from the list
+
+**NOTE** `filter` is available in Ampache 7.9.0 and higher. `id` is deprecated and will be removed in **API9**.
+
+**NOTE** `length` requests an estimated Content-Length. The estimate is `duration x bitrate` and was measured 13% short to 7% over depending on codec, so it is unreliable unless the transcode is cached; an over-declared body is truncated in transit.
+
+| Input | Type | Description | Optional |
+|----|----|----|---:|
+| 'filter' | string | \$object_id | NO |
+| 'type' | string | `song`, `podcast_episode`, `search`, `playlist` | NO |
+| 'bitrate' | integer | max bitrate for transcoding in bytes (e.g 192000=192Kb) | YES |
+| 'format' | string | `mp3`, `ogg`, `raw`, etc (raw returns the original format) | YES |
+| 'offset' | integer | Return results starting from this index position | YES |
+| 'length' | boolean | `0`, `1` estimated Content-Length (unreliable unless cached) | YES |
+| 'stats' | boolean | `0`, `1`, if false disable stat recording when playing the object (default: 1) | YES |
+
+- return file (HTTP 200 OK)
+- throws (HTTP 400 Bad Request)
+- throws (HTTP 404 Not Found)
+
+### flag[​](#flag "Direct link to flag")
+
+This flags a library item as a favorite
+
+- Setting flag to true (1) will set the flag
+- Setting flag to false (0) will remove the flag
+
+**NOTE** `filter` is available in Ampache 7.9.0 and higher. `id` is deprecated and will be removed in **API9**.
+
+| Input | Type | Description | Optional |
+|----|----|----|---:|
+| 'type' | string | `song`, `album`, `artist`, `playlist`, `podcast` | NO |
+|  |  | `podcast_episode`, `video`, `tvshow`, `tvshow_season` |  |
+| 'filter' | string | \$object_id | NO |
+| 'flag' | boolean | `0`, `1` | NO |
+
+- return object
+
+``` prism-code
+"success": ""
+```
+
+- throws object
+
+``` prism-code
+"error": ""
+```
+
+[Example](examples/flag.json)
+
+### rate[​](#rate "Direct link to rate")
+
+This rates a library item
+
+**NOTE** `filter` is available in Ampache 7.9.0 and higher. `id` is deprecated and will be removed in **API9**.
+
+| Input | Type | Description | Optional |
+|----|----|----|---:|
+| 'filter' | string | library item id | NO |
+| 'type' | string | `song`, `album`, `artist`, `playlist`, `podcast` | NO |
+|  |  | `podcast_episode`, `video`, `tvshow`, `tvshow_season` |  |
+| 'rating' | integer | rating between 0-5 | NO |
+
+- return object
+
+``` prism-code
+"success": ""
+```
+
+- throws object
+
+``` prism-code
+"error": ""
+```
+
+[Example](examples/rate.json)
+
