@@ -53,6 +53,32 @@ def _historyIds(dbPath):
         connection.close()
 
 
+def _pickArtist(client, artists):
+    """Step [2] artist pick — three tiers, robust against server catalog
+    changes. Returns (artistId, reason); reason names the tier for the
+    printout.
+
+    Tier 1: album-artist of a recently played album — guaranteed to have
+    albums in the CURRENT catalog. Alphabetical-first and albumCount filters
+    break on stale server metadata (the old artists[0] pick hit an artist
+    that appears only as song-artist on a compilation, so
+    getAlbumsFromArtist returned 0 rows and steps [4]/[4c]/[4d] failed).
+    Tier 2 (server has no play history): first step-[1] artist with
+    albumCount > 0 and songCount > 0.
+    Tier 3: artists[0] — the old behavior.
+
+    The getRecentAlbums call upserts one album row into the scratch DB before
+    step [3]; fine — all later checks are presence-based, never count-growth."""
+    recentAlbums = client.getRecentAlbums(limit=1)
+    if recentAlbums:
+        album = recentAlbums[0]
+        return album.artistId, "%s, via recent album '%s'" % (album.artistName, album.name)
+    for artist in artists:
+        if artist.albumCount > 0 and artist.songCount > 0:
+            return artist.id, "%s, first with albumCount > 0 and songCount > 0" % artist.name
+    return artists[0].id, "%s, alphabetical first" % artists[0].name
+
+
 def _fetchRange(url):
     """GET url with 'Range: bytes=0-1024'. Returns (ok, status, contentType,
     bytesReceived); ok means HTTP 200 or 206. Reads at most READ_CAP bytes then
@@ -132,8 +158,11 @@ def main(argv):
         results.append(("getArtist include", False))
         artist = None
     else:
-        picked = artists[0].id
-        print("    picked artist id %s" % picked)
+        # Three-tier pick — see _pickArtist. Tier 1's recent-album artist is
+        # guaranteed to have albums in the current catalog, so steps
+        # [4]/[4c]/[4d] no longer fail on a compilation-only song-artist.
+        picked, pickReason = _pickArtist(client, artists)
+        print("    picked artist id %s (%s)" % (picked, pickReason))
         artist = client.getArtist(picked, include="albums,songs")
         mid = _counts(dbPath)
         albumsAdded = mid["AlbumEntity"] - before["AlbumEntity"]
