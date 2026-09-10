@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """playlist_songs song entry -> PlaylistSongEntity join row.
 
 `position` is the ordering contract: the entry's `playlisttrack` value,

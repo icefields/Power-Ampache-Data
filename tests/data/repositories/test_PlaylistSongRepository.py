@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """PlaylistSongEntity join rows: upsert refreshes positions in place; the
 SongRepository join read-back returns songs in position order."""
 import sqlite3

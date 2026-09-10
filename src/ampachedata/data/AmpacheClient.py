@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Public facade. Owns the write-through flow for every read method:
 
     fetch (Transport) -> map (mappers) -> upsert (repositories) -> read back (repositories)

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """History domain entity — play history for one song, keyed by mediaId (the
 HistoryEntity row id mirrors it; see HistoryMapper). Clean names — no JSON
 keys, no DB-only columns (multiUserId stays in the DB layer)."""

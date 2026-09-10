@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Documented Ampache API error codes (spec intro section)."""
 from enum import IntEnum
 

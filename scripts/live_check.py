@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Live smoke check against a real Ampache server — NOT a unit test.
 
 pytest never collects this file (pyproject testpaths = tests/); run it by

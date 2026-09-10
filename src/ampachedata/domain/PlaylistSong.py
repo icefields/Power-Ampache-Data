@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """PlaylistSong domain entity — the playlist<->song join row. `position` is
 the playlist ordering contract (the payload's playlisttrack, verbatim).
 multiUserId stays in the DB layer."""

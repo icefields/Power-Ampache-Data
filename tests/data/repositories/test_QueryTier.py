@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Query tier: DB-only reads over the existing repositories. No transport —
 scratch DBs are seeded by upserting example fixtures and synthetic payloads
 through the existing mappers, then read back via the query methods."""

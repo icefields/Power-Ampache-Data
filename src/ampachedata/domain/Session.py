@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Domain representation of the current Ampache session (read back from SessionEntity)."""
 from dataclasses import dataclass, field
 from typing import Mapping

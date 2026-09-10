@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Write-through storage: upsert -> read back by artistId ordered by year,
 searchName; refresh semantics; sparse payloads."""
 import json

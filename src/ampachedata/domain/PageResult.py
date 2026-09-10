@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Paged read result for the query tier: one page of rows plus the total row
 count. A result type, not an entity — no table maps to it."""
 from dataclasses import dataclass

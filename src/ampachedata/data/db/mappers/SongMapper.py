@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """song JSON -> SongEntity row (id -> mediaId, url -> songUrl).
 
 Dropped per Field Mapping (no SongEntity column — silent, by design):

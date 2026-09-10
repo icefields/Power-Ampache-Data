@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """The injectable HTTP seam. AmpacheClient depends on Transport, never on urllib."""
 import json
 import urllib.error

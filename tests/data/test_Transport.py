@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """UrllibTransport's non-2xx handling: HTTP errors come back as error
 envelopes carrying the HTTP status as the code, so raiseForError can map
 them (401/403 -> InvalidHandshakeError, driving AmpacheClient's silent

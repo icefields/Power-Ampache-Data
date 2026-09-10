@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """handshake.json -> SessionEntity row, incl. the silent-drop list."""
 from ampachedata.data.db.mappers.SessionMapper import SESSION_PRIMARY_KEY, mapSession
 

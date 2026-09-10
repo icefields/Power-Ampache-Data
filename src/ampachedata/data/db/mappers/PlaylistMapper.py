@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """playlist JSON -> PlaylistEntity row.
 
 Dropped per Field Mapping (no PlaylistEntity column — silent, by design):

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Object types accepted by the interaction tier (flag/rate) — no magic strings.
 
 Only the four types this library models as domain entities; the spec's

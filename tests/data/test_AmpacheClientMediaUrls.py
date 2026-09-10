@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Pure URL-construction tests for getStreamUrl/getDownloadUrl.
 
 No fake transport, no DB: the client is built via __new__ with stub

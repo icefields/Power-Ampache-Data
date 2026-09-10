@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Opens the caller-provided musicdb.db. The library NEVER creates or alters schema."""
 import os
 import sqlite3

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """album JSON -> AlbumEntity row.
 
 Dropped per Field Mapping (no AlbumEntity column — silent, by design):

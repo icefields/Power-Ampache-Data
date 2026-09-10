@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Auth composition against the known-good vector (CONVENTIONS: auth test)."""
 from ampachedata.data.auth.Handshake import buildPassphrase, sha256Hex
 

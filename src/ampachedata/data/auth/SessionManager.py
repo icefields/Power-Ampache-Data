@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Owns the session lifecycle: when to handshake, silent re-auth on expiry/4701.
 
 goodbye/logout is NEVER called — tokens are time-limited and simply replaced."""

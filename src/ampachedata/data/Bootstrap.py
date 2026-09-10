@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """First-run credentials bootstrap — the ONLY boundary where cleartext may exist.
 
 Cleartext is accepted transiently (hidden prompt / stdin / env var via the CLI),
