@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """API method names — no magic strings outside this enum."""
 from enum import Enum
 

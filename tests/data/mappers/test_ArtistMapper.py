@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """artists.json artist objects -> ArtistEntity rows, incl. the silent-drop list."""
 import pytest
 

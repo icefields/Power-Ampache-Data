@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """artist JSON -> ArtistEntity row dict.
 
 Dropped per Field Mapping (no ArtistEntity column — silent, by design):

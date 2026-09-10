@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """handshake/ping response JSON -> SessionEntity row dict.
 
 Dropped per Field Mapping (no SessionEntity column — silent, by design):

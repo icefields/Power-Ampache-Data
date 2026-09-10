@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Song domain entity. Clean names — no JSON keys, no DB-only columns
 (multiUserId, searchTitle stay in the DB layer). Nullable response
 fields the mapper passes through untouched (mime, mode, publisher, the

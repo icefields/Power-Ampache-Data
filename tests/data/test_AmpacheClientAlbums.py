@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """albums/album write-through flows through the fake transport. No network.
 
 albums returns an `album` list; album returns a single BARE object. Both

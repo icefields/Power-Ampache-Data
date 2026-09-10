@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """SQL-only access to SessionEntity (single row, PK primaryKey). Never sees HTTP.
 
 Column names are quoted in generated SQL: "update" and "add" are SQLite keywords."""

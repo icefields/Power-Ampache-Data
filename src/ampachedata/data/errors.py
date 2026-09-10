@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Typed exception hierarchy. Raw HTTP status codes never escape data/."""
 from .ErrorCode import ErrorCode
 

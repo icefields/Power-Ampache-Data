@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Resurrection flows through the REAL UrllibTransport — only urlopen is
 monkeypatched, nothing else is faked. The FakeTransport tests
 (test_AmpacheClient.py) bypass the transport entirely, so they cannot catch

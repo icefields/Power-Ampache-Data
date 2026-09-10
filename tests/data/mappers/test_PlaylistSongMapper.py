@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """playlist_songs.json song entries -> PlaylistSongEntity join rows.
 
 position is the payload's playlisttrack, verbatim — never renumbered."""

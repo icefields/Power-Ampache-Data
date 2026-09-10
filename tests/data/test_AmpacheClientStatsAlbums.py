@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """stats (type=album) write-through flows through the fake transport. No network.
 
 filter is ALWAYS sent explicitly (the API default is random — never

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """songs/song write-through flows through the fake transport. No network.
 
 A song with a real last_played also writes a HistoryEntity row (playCount;

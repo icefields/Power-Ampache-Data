@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """ampachedata — public API. Anything not re-exported here is private."""
 from .data.AmpacheClient import AmpacheClient
 from .data.Bootstrap import storeCredentialsFromKey, storeCredentialsFromPassword

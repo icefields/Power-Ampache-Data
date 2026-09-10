@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Interaction tier: flag()/rate() — mutating calls, write-through re-fetch,
 read-back verification. FakeTransport + scratch DB from schema.sql."""
 import sqlite3

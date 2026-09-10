@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """LIKE pattern building for the query tier's search methods.
 
 User input matches LITERALLY: backslash, % and _ are escaped, and every

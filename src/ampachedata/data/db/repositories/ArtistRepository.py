@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """SQL-only access to ArtistEntity (PK id). Never sees HTTP.
 
 Transaction semantics: upserts commit only when this call owns the transaction

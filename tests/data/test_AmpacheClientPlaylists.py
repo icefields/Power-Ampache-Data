@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """playlists/playlist/playlist_songs write-through flows through the fake
 transport. No network.
 

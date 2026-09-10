@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """ping + re-auth flows through the fake transport. No network."""
 import json
 import sqlite3

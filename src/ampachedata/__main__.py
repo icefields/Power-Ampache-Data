@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """CLI: python -m ampachedata init-credentials ...
 
 First-run credentials bootstrap. The cleartext password is accepted ONCE here —

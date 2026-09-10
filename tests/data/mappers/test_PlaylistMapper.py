@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """playlists.json/playlist.json playlist objects -> PlaylistEntity rows,
 incl. the silent-drop list."""
 from ampachedata.data.db.mappers.PlaylistMapper import mapPlaylist

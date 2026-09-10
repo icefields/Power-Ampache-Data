@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """SQL-only access to PlaylistSongEntity (PK id — synthesized by
 PlaylistSongMapper as "{playlistId}:{songId}"). Never sees HTTP.
 

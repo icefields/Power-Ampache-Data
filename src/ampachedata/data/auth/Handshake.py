@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Pure passphrase construction. No I/O, no DB, no transport.
 
 passphrase = SHA256(timestamp + KEY), where KEY = SHA256(password) is already

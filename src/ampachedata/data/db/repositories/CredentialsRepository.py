@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """SQL-only access to CredentialsEntity (single row, PK primaryKey).
 
 The password column holds SHA256(password) — the KEY. Cleartext is never stored."""

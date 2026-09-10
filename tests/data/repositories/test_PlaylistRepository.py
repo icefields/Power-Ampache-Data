@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Write-through storage for PlaylistEntity: upsert -> read back ordered by
 (name, id); refresh semantics; single-row read-back."""
 import sqlite3

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """stats method filter values — no magic strings outside this enum.
 
 All seven documented values live here; AmpacheClient's song and album

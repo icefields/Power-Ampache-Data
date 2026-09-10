@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """song JSON -> HistoryEntity row, or None when the song was never played.
 
 PK id mirrors the song id/mediaId so repeated write-throughs refresh ONE row

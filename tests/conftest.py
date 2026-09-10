@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 icefields
+# SPDX-License-Identifier: GPL-3.0-only
 """Shared fixtures: scratch DB built from docs/schema.sql (tests may create schema —
 the library never does), FakeTransport (no network), seed helpers."""
 import json
