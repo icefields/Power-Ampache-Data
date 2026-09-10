@@ -347,11 +347,11 @@ def main(argv):
         totalCount = (client.lastPayload or {}).get("total_count")
         print("    getAlbumSongs(%s): %d returned, envelope total_count: %s"
               % (pickedAlbum.id, len(albumSongs), totalCount))
-        for song in albumSongs[:3]:
-            print("    first: disk %d track %d — %s" % (song.disk, song.trackNumber, song.title))
-        if len(albumSongs) > 3:
-            last = albumSongs[-1]
-            print("    last:  disk %d track %d — %s" % (last.disk, last.trackNumber, last.title))
+        if albumSongs:
+            print("    first by (disk, trackNumber, searchTitle): disk %d track %d — %s"
+                  % (albumSongs[0].disk, albumSongs[0].trackNumber, albumSongs[0].title))
+            print("    last  by (disk, trackNumber, searchTitle): disk %d track %d — %s"
+                  % (albumSongs[-1].disk, albumSongs[-1].trackNumber, albumSongs[-1].title))
         results.append(("getAlbumSongs returned rows", len(albumSongs) > 0))
 
         # getArtistSongs: same artist, read-back ordered by searchTitle.
