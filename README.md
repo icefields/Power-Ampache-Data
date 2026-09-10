@@ -6,7 +6,7 @@ Every API response is persisted to SQLite first, then read back - the database i
 the single source of truth, and callers never receive raw server payloads.
 Zero runtime dependencies, stdlib only (pure Python + `sqlite3`).
 
-- Live-proven against a real Ampache 8.0.x server
+- Live-proven against real Ampache 8.x, 7.x servers
 - Session persistence across process restarts, with silent re-auth + one retry on expiry
 - Two layers: `AmpacheClient` for network + write-through, repositories for offline reads (no network)
 - Cleartext passwords are accepted once, hashed in memory, and never stored or logged
