@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ampachedata"
-version = "0.1.2"
+version = "0.1.3"
 description = "Client library for the Ampache JSON API with a SQLite write-through data layer."
 authors = [{ name = "icefields", email = "arctic.icefields@slmails.com" }]
 license = "GPL-3.0-only"
