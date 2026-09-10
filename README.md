@@ -106,12 +106,12 @@ client.goodbye()
 
 ```
                 ┌───────────────────────────────┐
-   Ampache ────▶│  AmpacheClient (network layer) │────▶ SQLite (musicdb.db)
+   Ampache ────▶│  AmpacheClient (network layer)│────▶ SQLite (musicdb.db)
    JSON API     │  persist first, read back     │           │
                 └───────────────────────────────┘           ▼
                 ┌───────────────────────────────┐
-   Your UI ◀───│  Repositories (offline layer)  │◀─── typed entities
-   (no network) │  list / search / count / page  │
+   Your UI ◀─── │ Repositories (offline layer)  │◀─── typed entities
+   (no network) │  list / search / count / page │
                 └───────────────────────────────┘
 ```
 
