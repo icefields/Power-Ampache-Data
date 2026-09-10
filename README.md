@@ -32,8 +32,8 @@ pip install ampachedata[dev]
 From source:
 
 ```bash
-git clone https://github.com/icefields/Power-Ampache-Data
-cd Power-Ampache-Data
+git clone https://github.com/icefields/Ampache-Data-Library
+cd Ampache-Data-Library
 pip install -e .
 ```
 
@@ -51,7 +51,7 @@ conn.close()
 ```
 
 (`docs/schema.sql` lives in the
-[repository](https://github.com/icefields/Power-Ampache-Data/blob/main/docs/schema.sql) -
+[repository](https://github.com/icefields/Ampache-Data-Library/blob/main/docs/schema.sql) -
 it is not shipped inside the package.)
 
 **2. Store credentials** (one time per user/server). The cleartext password is
@@ -325,5 +325,5 @@ supported.
 
 ## Links
 
-- Source & issues: <https://github.com/icefields/Power-Ampache-Data>
+- Source & issues: <https://github.com/icefields/Ampache-Data-Library>
 - PyPI: <https://pypi.org/project/ampachedata/>
