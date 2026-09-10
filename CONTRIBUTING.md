@@ -1,4 +1,4 @@
-# CONVENTIONS.md — Ampache Client Library
+# CONTRIBUTING.md -- Ampache Client Library
 
 Read this before writing any code. These rules are binding for this project.
 
