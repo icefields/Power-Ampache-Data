@@ -1,16 +1,35 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ampachedata"
 version = "0.1.0"
-description = "Clean, reusable client library for the Ampache JSON API (SQLite write-through)."
-requires-python = ">=3.9"
+description = "Client library for the Ampache JSON API with a SQLite write-through data layer."
+authors = [{ name = "icefields", email = "arctic.icefields@slmails.com" }]
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.11"
 dependencies = []
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/icefields/Power-Ampache-Data"
+"Bug Tracker" = "https://github.com/icefields/Power-Ampache-Data/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

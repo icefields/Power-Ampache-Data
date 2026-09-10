@@ -23,12 +23,38 @@ aider-ampache-tutorial.md     build walkthrough (start here)
 
 ## Install
 
+From PyPI:
+
+```
+pip install ampachedata
+```
+
+For development, from a source checkout:
+
 ```
 pip install -e .
 ```
 
 Then `import ampachedata` from any project. Configuration is injected:
 `AmpacheClient(dbPath=...)` — the DB path belongs to the caller.
+
+## Usage
+
+Bootstrap credentials once (stores only the SHA256 digest — never cleartext):
+
+```
+python -m ampachedata init-credentials
+```
+
+Then:
+
+```python
+from ampachedata import AmpacheClient
+
+client = AmpacheClient(dbPath="/path/to/musicdb.db")
+for artist in client.getArtists():
+    print(artist.name)
+```
 
 ## Rules
 
