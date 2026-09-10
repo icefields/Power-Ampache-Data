@@ -12,7 +12,6 @@ from ..db.mappers.SessionMapper import mapSession
 from ..errors import InvalidHandshakeError, raiseForError
 from .Handshake import buildPassphrase
 
-DEFAULT_API_VERSION = "8.0.0"
 ENDPOINT_PATH = "/server/json.server.php"
 
 
@@ -74,7 +73,6 @@ class SessionManager:
             "timestamp": timestamp,
             "user": credentials.username,
             "auth": passphrase,
-            "version": DEFAULT_API_VERSION,
         }
         url = credentials.serverUrl.rstrip("/") + ENDPOINT_PATH
         payload = self._transport.send("GET", url, params, {})
