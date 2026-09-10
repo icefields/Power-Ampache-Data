@@ -74,8 +74,18 @@ def raiseForError(payload):
     if error is None:
         return
     if isinstance(error, dict):
-        rawCode = error.get("code", 0)
-        message = error.get("message") or ""
+        if "code" not in error and "errorCode" in error:
+            # Spec-shaped envelope: errorCode/errorMessage keys, the code as
+            # a STRING — e.g. an HTTP 200 handshake rejection
+            # {'error': {'errorCode': '4701', 'errorAction': 'handshake',
+            # 'errorType': 'version', 'errorMessage': 'Received Invalid
+            # Handshake'}}. The int() coercion below maps it like any other
+            # code ('4701' -> 4701 -> InvalidHandshakeError).
+            rawCode = error.get("errorCode", 0)
+            message = error.get("errorMessage") or ""
+        else:
+            rawCode = error.get("code", 0)
+            message = error.get("message") or ""
     else:
         rawCode = 0
         message = str(error)
