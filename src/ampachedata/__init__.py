@@ -28,6 +28,11 @@ from .domain.Playlist import Playlist
 from .domain.PlaylistSong import PlaylistSong
 from .domain.Session import Session
 from .domain.Song import Song
+from .data.db.Database import Database
+from .data.db.repositories.ArtistRepository import ArtistRepository
+from .data.db.repositories.AlbumRepository import AlbumRepository
+from .data.db.repositories.SongRepository import SongRepository
+from .data.db.repositories.PlaylistRepository import PlaylistRepository
 
 __all__ = [
     "AmpacheClient",
@@ -43,6 +48,11 @@ __all__ = [
     "OperationResult",
     "PageResult",
     "ObjectType",
+    "Database",
+    "ArtistRepository",
+    "AlbumRepository",
+    "SongRepository",
+    "PlaylistRepository",
     "storeCredentialsFromPassword",
     "storeCredentialsFromKey",
     "AmpacheError",
