@@ -5,6 +5,7 @@
     fetch (Transport) -> map (mappers) -> upsert (repositories) -> read back (repositories)
 
 Repositories are SQL-only and never see HTTP; mappers never see SQL or domain."""
+import time
 from urllib.parse import urlencode
 
 from ..domain.Album import Album
@@ -332,14 +333,25 @@ class AmpacheClient:
         """stats (type=song, filter=recent): write-through for recently played
         songs.
 
-        fetch -> map (song rows + HistoryEntity rows for played songs only;
-        null last_played maps to None and is dropped) -> upsert BOTH in one
+        fetch -> map (song rows + HistoryEntity rows) -> upsert BOTH in one
         transaction -> read back from the DB only: ALL songs with play
         history, HistoryEntity.lastPlayed DESC (most recent first).
-        Never-played songs have no HistoryEntity row and never appear in the
-        read-back. Envelope-only fields (total_count, md5) are not persisted —
-        reach them via lastPayload."""
-        self._getStatsSongs(StatsFilter.RECENT, userId, username, offset, limit)
+        Envelope-only fields (total_count, md5) are not persisted — reach
+        them via lastPayload.
+
+        API6 null-last_played workaround: API 6.x servers (verified live on
+        Ampache 7.9.2 / API 6.9.1) return stats-recent songs with
+        last_played: null even when playcount > 0 — the server listed the
+        user's plays but omitted the timestamps. The response order IS the
+        recency order, so this method passes fabricateLastPlayed=True:
+        mapHistory substitutes now_ms - response_index (epoch ms;
+        PowerAmpache 2 precedent — index subtraction preserves the server's
+        order), the plays land in HistoryEntity, and the read-back returns
+        them in response order. Real ISO last_played values (API8) always
+        win over the fabricated fallback; songs with playcount 0 still
+        write no history row and never appear."""
+        self._getStatsSongs(StatsFilter.RECENT, userId, username, offset, limit,
+                            fabricateLastPlayed=True)
         return self._songRepository.getSongsByLastPlayed()
 
     def getFrequentSongs(self, userId=None, username=None, offset=None, limit=None):
@@ -418,20 +430,45 @@ class AmpacheClient:
         return self._songRepository.getSongs()
 
     def _getStatsSongs(self, statsFilter: StatsFilter, userId=None, username=None,
-                       offset=None, limit=None):
+                       offset=None, limit=None, fabricateLastPlayed=False):
         """Shared write-through for the stats song family: fetch (all pages)
         -> map (song rows + HistoryEntity rows for played songs only; null
         last_played maps to None and is dropped) -> upsert BOTH in one
         transaction. Returns the raw response rows so each public method can
         apply its own read-back (random keeps response order — see
-        getRandomSongs)."""
+        getRandomSongs).
+
+        fabricateLastPlayed (getRecentSongs ONLY): API 6.x servers omit
+        last_played on played songs — verified live on Ampache 7.9.2
+        (API 6.9.1): {'id': '253893', 'playcount': 1, 'last_played': None}.
+        The stats-recent response order IS the recency order, so each
+        song's fallback is fabricated as now_ms - response_index (epoch
+        milliseconds; PowerAmpache 2 precedent — index subtraction
+        preserves the server's ordering) and passed to mapHistory. Real
+        ISO last_played values always win; the fallback only fills nulls,
+        and playcount-0 songs still write no row. Every other stats method
+        keeps the default False: null last_played maps to None and no
+        HistoryEntity row is written."""
         params = self._listParams(
             type="song", filter=statsFilter.value, user_id=userId,
             username=username, offset=offset, limit=limit,
         )
         songs = self._fetchAllPages(ApiMethod.STATS, params, "song")
         songRows = [mapSong(song) for song in songs]
-        historyRows = [row for row in (mapHistory(song) for song in songs) if row is not None]
+        if fabricateLastPlayed:
+            nowMs = int(time.time() * 1000)
+            historyRows = [
+                row
+                for row in (
+                    mapHistory(song, fallbackLastPlayed=nowMs - index)
+                    for index, song in enumerate(songs)
+                )
+                if row is not None
+            ]
+        else:
+            historyRows = [
+                row for row in (mapHistory(song) for song in songs) if row is not None
+            ]
         connection = self._database.connection
         with connection:
             if not connection.in_transaction:

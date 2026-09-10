@@ -17,6 +17,7 @@ never-played paths (no HistoryEntity row, absent from history read-backs)."""
 import copy
 import json
 import sqlite3
+import time
 
 from ampachedata import AmpacheClient
 
@@ -258,3 +259,57 @@ def testGetHighestSongsSendsStatsParams(makeClient, seedCredentials, seedSession
     assert params["username"] == "user"
     assert params["offset"] == "10"
     assert params["limit"] == "5"
+
+
+def _nullLastPlayedPayload(statsSongPayload):
+    """API6 shape (verified live on Ampache 7.9.2 / API 6.9.1): played songs
+    with last_played: null — the server listed the user's plays but omitted
+    the timestamps."""
+    payload = copy.deepcopy(statsSongPayload)
+    for song in payload["song"]:
+        song["playcount"] = 1
+        song["last_played"] = None
+    return payload
+
+
+def testGetRecentSongsFabricatesLastPlayedWhenServerOmitsIt(dbPath, makeClient,
+                                                            seedCredentials, seedSession,
+                                                            statsSongPayload, monkeypatch):
+    """API6 workaround: null last_played + playcount > 0 -> mapHistory
+    substitutes now_ms - response_index, so the plays land in HistoryEntity
+    and the read-back returns the songs in RESPONSE order (the server's
+    recency order)."""
+    seedCredentials()
+    seedSession()
+    monkeypatch.setattr(time, "time", lambda: 1_700_000_000.0)
+    client, transport = makeClient([_nullLastPlayedPayload(statsSongPayload)])
+    songs = client.getRecentSongs()
+    assert [s.id for s in songs] == ["135", "134"]  # response order preserved
+    (request,) = transport.requests
+    assert request["params"]["action"] == "stats"
+    assert request["params"]["filter"] == "recent"
+    connection = sqlite3.connect(dbPath)
+    assert connection.execute("SELECT COUNT(*) FROM SongEntity").fetchone()[0] == 2
+    rows = connection.execute(
+        "SELECT mediaId, playCount, lastPlayed FROM HistoryEntity ORDER BY lastPlayed DESC"
+    ).fetchall()
+    assert rows == [
+        ("135", 1, 1_700_000_000_000),      # now_ms - 0
+        ("134", 1, 1_700_000_000_000 - 1),  # now_ms - 1
+    ]
+
+
+def testGetFrequentSongsWithNullLastPlayedStillWritesNoHistoryRows(dbPath, makeClient,
+                                                                   seedCredentials, seedSession,
+                                                                   statsSongPayload):
+    """The fallback path is recent-only: frequent (and every other stats
+    method) keeps the historic behavior — null last_played maps to None and
+    no HistoryEntity row is written, so the play-history read-back is empty."""
+    seedCredentials()
+    seedSession()
+    client, transport = makeClient([_nullLastPlayedPayload(statsSongPayload)])
+    assert client.getFrequentSongs() == []
+    assert transport.requests[0]["params"]["filter"] == "frequent"
+    connection = sqlite3.connect(dbPath)
+    assert connection.execute("SELECT COUNT(*) FROM SongEntity").fetchone()[0] == 2
+    assert connection.execute("SELECT COUNT(*) FROM HistoryEntity").fetchone()[0] == 0
