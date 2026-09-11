@@ -312,11 +312,7 @@ cleartext password or the stored hash.
 
 ## Server compatibility
 
-Developed and live-tested against **Ampache 8.0.x** (`json.server.php`, JSON
-API). The method set (handshake, ping, artists/albums/songs, stats,
-playlists, flag, rate, stream, download, goodbye) is long-standing Ampache
-JSON API surface, but only 8.0.x has been live-proven. Python 3.11–3.14
-supported.
+Developed and live-tested against **Ampache 8.0.1 (API 8)** and **Ampache 7.9.2 (API 6)** (`json.server.php`, JSON API). The method set (handshake, ping, artists/albums/songs, stats, playlists, flag, rate, stream, download, goodbye) is long-standing Ampache JSON API surface, live-proven on both generations. Python 3.11–3.14 supported.
 
 ## License
 
