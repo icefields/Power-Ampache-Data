@@ -7,12 +7,16 @@ inherited). limit semantics come from _fetchAllPages: no limit -> full
 pages until total_count; explicit limit -> the caller's window, verbatim.
 
 NO HistoryEntity rows are written for albums: mapHistory is song-shaped
-and AlbumEntity has no play columns. Play-derived ordering is therefore
-impossible from stored columns — recent/frequent/forgotten read back
-ordered by (year, searchName) like getAlbums; newest/highest read back the
-same way (LIMITATION: neither add date nor rating orders the read-back);
-only random keeps response order (the explicit CONVENTIONS exception)."""
+and AlbumEntity has no play columns. The read-back therefore cannot be
+DB-derived for ANY filter — every method (not just random) uses the
+explicit CONVENTIONS 'persist, read back from response' allowance: the
+ORDER comes from the response while entity data still comes only from
+the DB (read back by id via getAlbum, in response order)."""
 import sqlite3
+
+import pytest
+
+from ampachedata import AmpacheError
 
 HANDSHAKE_AUTH = "0c45633f51b0e264a2260ebfa406e1ad"
 
@@ -23,7 +27,7 @@ def testGetRecentAlbumsWriteThroughAndReadBack(dbPath, makeClient, seedCredentia
     seedSession()
     client, transport = makeClient([statsAlbumPayload])
     albums = client.getRecentAlbums()
-    # read-back is (year, searchName): 2005 "Forget and Remember" before 2012 "Buried in Nausea"
+    # read-back order comes from the response: 21 before 12
     assert [a.id for a in albums] == ["21", "12"]
     first = albums[0]
     assert first.name == "Forget and Remember"
@@ -52,6 +56,10 @@ def testGetFrequentAlbumsSendsFilterAndReadsBack(makeClient, seedCredentials, se
     albums = client.getFrequentAlbums()
     assert [a.id for a in albums] == ["21", "12"]
     assert transport.requests[0]["params"]["filter"] == "frequent"
+    reversedPayload = dict(statsAlbumPayload)
+    reversedPayload["album"] = list(reversed(statsAlbumPayload["album"]))
+    client, _ = makeClient([reversedPayload])
+    assert [a.id for a in client.getFrequentAlbums()] == ["12", "21"]  # response order
 
 
 def testGetForgottenAlbumsSendsFilterAndReadsBack(makeClient, seedCredentials, seedSession,
@@ -62,6 +70,10 @@ def testGetForgottenAlbumsSendsFilterAndReadsBack(makeClient, seedCredentials, s
     albums = client.getForgottenAlbums()
     assert [a.id for a in albums] == ["21", "12"]
     assert transport.requests[0]["params"]["filter"] == "forgotten"
+    reversedPayload = dict(statsAlbumPayload)
+    reversedPayload["album"] = list(reversed(statsAlbumPayload["album"]))
+    client, _ = makeClient([reversedPayload])
+    assert [a.id for a in client.getForgottenAlbums()] == ["12", "21"]  # response order
 
 
 def testGetRandomAlbumsKeepsResponseOrder(dbPath, makeClient, seedCredentials,
@@ -133,7 +145,7 @@ def testGetNewestAlbumsSendsFilterAndReadsBack(dbPath, makeClient, seedCredentia
     seedSession()
     client, transport = makeClient([statsAlbumPayload])
     albums = client.getNewestAlbums()
-    # read-back is (year, searchName): 2005 "Forget and Remember" before 2012 "Buried in Nausea"
+    # read-back order comes from the response: 21 before 12
     assert [a.id for a in albums] == ["21", "12"]
     (request,) = transport.requests
     assert request["params"]["action"] == "stats"
@@ -152,18 +164,41 @@ def testGetHighestAlbumsSendsFilterAndReadsBack(makeClient, seedCredentials, see
     albums = client.getHighestAlbums()
     assert [a.id for a in albums] == ["21", "12"]
     assert transport.requests[0]["params"]["filter"] == "highest"
+    reversedPayload = dict(statsAlbumPayload)
+    reversedPayload["album"] = list(reversed(statsAlbumPayload["album"]))
+    client, _ = makeClient([reversedPayload])
+    assert [a.id for a in client.getHighestAlbums()] == ["12", "21"]  # response order
 
 
-def testNewestAndHighestAlbumsReadBackIsNotResponseOrder(makeClient, seedCredentials,
-                                                         seedSession, statsAlbumPayload):
-    """LIMITATION, explicit: neither add date (newest) nor rating (highest)
-    orders the read-back — it is ALWAYS (year, searchName), even when the
-    response order differs (here deliberately reversed). Contrast
-    testGetRandomAlbumsKeepsResponseOrder: only random keeps response order."""
+def testNewestAndHighestAlbumsReadBackIsResponseOrder(makeClient, seedCredentials,
+                                                      seedSession, statsAlbumPayload):
+    """Response order wins for newest/highest too: the reversed response
+    (12 before 21) is returned verbatim — the same read-back shape as
+    random, not the old (year, searchName) cache order."""
     seedCredentials()
     seedSession()
     reversedPayload = dict(statsAlbumPayload)
     reversedPayload["album"] = list(reversed(statsAlbumPayload["album"]))
     client, _ = makeClient([reversedPayload, reversedPayload])
-    assert [a.id for a in client.getNewestAlbums()] == ["21", "12"]
-    assert [a.id for a in client.getHighestAlbums()] == ["21", "12"]
+    assert [a.id for a in client.getNewestAlbums()] == ["12", "21"]
+    assert [a.id for a in client.getHighestAlbums()] == ["12", "21"]
+
+
+@pytest.mark.parametrize("methodName", [
+    "getRecentAlbums",
+    "getFrequentAlbums",
+    "getForgottenAlbums",
+    "getNewestAlbums",
+    "getHighestAlbums",
+])
+def testStatsAlbumsMissingReadBackRowRaises(dbPath, makeClient, seedCredentials,
+                                            seedSession, statsAlbumPayload,
+                                            monkeypatch, methodName):
+    """A response id that the write-through failed to persist raises the
+    same AmpacheError getRandomAlbums raises — never a silent skip."""
+    seedCredentials()
+    seedSession()
+    client, _ = makeClient([statsAlbumPayload])
+    monkeypatch.setattr(client._albumRepository, "getAlbum", lambda albumId: None)
+    with pytest.raises(AmpacheError, match="missing from DB after write-through"):
+        getattr(client, methodName)()

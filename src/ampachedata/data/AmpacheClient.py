@@ -481,32 +481,61 @@ class AmpacheClient:
         """stats (type=album, filter=recent): write-through for recently played
         albums.
 
-        LIMITATION: AlbumEntity has no play columns and HistoryEntity is
-        song-shaped, so play-derived ordering is impossible from stored
-        columns — the read-back is ordered by searchName, NOT by recency.
-        Envelope-only fields (total_count, md5) stay on lastPayload."""
-        self._getStatsAlbums(StatsFilter.RECENT, userId, username, offset, limit)
-        return self._albumRepository.getAlbums()
+        fetch -> map (album rows) -> upsert in one transaction -> read back
+        from the DB only: per the 'persist, read back from response'
+        allowance the ORDER comes from the response — the server's recency
+        order — while entity data still comes only from the DB: after the
+        write-through each album is read back by id (getAlbum) in response
+        order. Envelope-only fields (total_count, md5) stay on
+        lastPayload."""
+        albums = self._getStatsAlbums(StatsFilter.RECENT, userId, username, offset, limit)
+        result = []
+        for album in albums:
+            readBack = self._albumRepository.getAlbum(album.get("id"))
+            if readBack is None:
+                raise AmpacheError("album " + str(album.get("id")) + " missing from DB after write-through")
+            result.append(readBack)
+        return result
 
     def getFrequentAlbums(self, userId=None, username=None, offset=None, limit=None):
         """stats (type=album, filter=frequent): write-through for the most
         played albums.
 
-        LIMITATION: no play data is persisted for albums (see getRecentAlbums)
-        — the read-back is ordered by searchName, NOT by play count.
-        Envelope-only fields (total_count, md5) stay on lastPayload."""
-        self._getStatsAlbums(StatsFilter.FREQUENT, userId, username, offset, limit)
-        return self._albumRepository.getAlbums()
+        fetch -> map (album rows) -> upsert in one transaction -> read back
+        from the DB only: per the 'persist, read back from response'
+        allowance the ORDER comes from the response — the server's
+        play-count order — while entity data still comes only from the DB:
+        after the write-through each album is read back by id (getAlbum) in
+        response order. Envelope-only fields (total_count, md5) stay on
+        lastPayload."""
+        albums = self._getStatsAlbums(StatsFilter.FREQUENT, userId, username, offset, limit)
+        result = []
+        for album in albums:
+            readBack = self._albumRepository.getAlbum(album.get("id"))
+            if readBack is None:
+                raise AmpacheError("album " + str(album.get("id")) + " missing from DB after write-through")
+            result.append(readBack)
+        return result
 
     def getForgottenAlbums(self, userId=None, username=None, offset=None, limit=None):
         """stats (type=album, filter=forgotten): write-through for the least
         recently played albums.
 
-        LIMITATION: no play data is persisted for albums (see getRecentAlbums)
-        — the read-back is ordered by searchName, NOT by last-played.
-        Envelope-only fields (total_count, md5) stay on lastPayload."""
-        self._getStatsAlbums(StatsFilter.FORGOTTEN, userId, username, offset, limit)
-        return self._albumRepository.getAlbums()
+        fetch -> map (album rows) -> upsert in one transaction -> read back
+        from the DB only: per the 'persist, read back from response'
+        allowance the ORDER comes from the response — the server's
+        least-recently-played order — while entity data still comes only
+        from the DB: after the write-through each album is read back by id
+        (getAlbum) in response order. Envelope-only fields (total_count,
+        md5) stay on lastPayload."""
+        albums = self._getStatsAlbums(StatsFilter.FORGOTTEN, userId, username, offset, limit)
+        result = []
+        for album in albums:
+            readBack = self._albumRepository.getAlbum(album.get("id"))
+            if readBack is None:
+                raise AmpacheError("album " + str(album.get("id")) + " missing from DB after write-through")
+            result.append(readBack)
+        return result
 
     def getRandomAlbums(self, userId=None, username=None, offset=None, limit=None):
         """stats (type=album, filter=random): write-through for a random album
@@ -531,29 +560,48 @@ class AmpacheClient:
         """stats (type=album, filter=newest): write-through for the newest
         albums.
 
-        LIMITATION: AlbumEntity has no add-date column, so newest-first
-        ordering is impossible from stored columns — the read-back is
-        ordered by (year, searchName) like getAlbums, NOT by add date.
-        Envelope-only fields (total_count, md5) stay on lastPayload."""
-        self._getStatsAlbums(StatsFilter.NEWEST, userId, username, offset, limit)
-        return self._albumRepository.getAlbums()
+        fetch -> map (album rows) -> upsert in one transaction -> read back
+        from the DB only: per the 'persist, read back from response'
+        allowance the ORDER comes from the response — the server's add-date
+        order — while entity data still comes only from the DB: after the
+        write-through each album is read back by id (getAlbum) in response
+        order. Envelope-only fields (total_count, md5) stay on
+        lastPayload."""
+        albums = self._getStatsAlbums(StatsFilter.NEWEST, userId, username, offset, limit)
+        result = []
+        for album in albums:
+            readBack = self._albumRepository.getAlbum(album.get("id"))
+            if readBack is None:
+                raise AmpacheError("album " + str(album.get("id")) + " missing from DB after write-through")
+            result.append(readBack)
+        return result
 
     def getHighestAlbums(self, userId=None, username=None, offset=None, limit=None):
         """stats (type=album, filter=highest): write-through for the highest
         rated albums.
 
-        LIMITATION: a rating-ordered read-back is not invented here — the
-        read-back is ordered by (year, searchName) like getAlbums, NOT by
-        rating. Envelope-only fields (total_count, md5) stay on
+        fetch -> map (album rows) -> upsert in one transaction -> read back
+        from the DB only: per the 'persist, read back from response'
+        allowance the ORDER comes from the response — the server's rating
+        order — while entity data still comes only from the DB: after the
+        write-through each album is read back by id (getAlbum) in response
+        order. Envelope-only fields (total_count, md5) stay on
         lastPayload."""
-        self._getStatsAlbums(StatsFilter.HIGHEST, userId, username, offset, limit)
-        return self._albumRepository.getAlbums()
+        albums = self._getStatsAlbums(StatsFilter.HIGHEST, userId, username, offset, limit)
+        result = []
+        for album in albums:
+            readBack = self._albumRepository.getAlbum(album.get("id"))
+            if readBack is None:
+                raise AmpacheError("album " + str(album.get("id")) + " missing from DB after write-through")
+            result.append(readBack)
+        return result
 
     def _getStatsAlbums(self, statsFilter: StatsFilter, userId=None, username=None,
                         offset=None, limit=None):
         """Shared write-through for the stats album family: fetch (all pages)
-        -> map (album rows) -> upsert in one transaction. Returns the raw
-        response rows so getRandomAlbums can keep response order.
+        -> map (album rows) -> upsert in one transaction.
+        Returns the raw response rows so each public method can read back in
+        response order (getRandomAlbums' shape).
 
         NO HistoryEntity rows: mapHistory is song-shaped and AlbumEntity has
         no play columns — play persistence is not invented here. filter is
