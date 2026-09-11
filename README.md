@@ -14,8 +14,9 @@ Zero runtime dependencies, stdlib only (pure Python + `sqlite3`).
 ## Requirements
 
 - Python **3.11+**
-- An existing SQLite database with the schema (see below - the library never
-  creates or alters schema, by design)
+- A SQLite database with the schema - create one with the opt-in
+  `createDatabase()` helper (see Quick start; the library never creates or
+  alters schema on its own, by design)
 
 ## Installation
 
@@ -40,19 +41,17 @@ pip install -e .
 ## Quick start
 
 **1. Create the database** (one time). The library deliberately never creates
-schema - you own the file. Build it from the repository's schema:
+or alters schema on its own - you own the file. The opt-in helper builds it
+from the schema bundled inside the package:
 
 ```python
-import sqlite3
+from ampachedata import createDatabase
 
-conn = sqlite3.connect("musicdb.db")
-conn.executescript(open("docs/schema.sql", encoding="utf-8").read())
-conn.close()
+createDatabase("musicdb.db")
 ```
 
-(`docs/schema.sql` lives in the
-[repository](https://github.com/icefields/Ampache-Data-Library/blob/main/docs/schema.sql) -
-it is not shipped inside the package.)
+`createDatabase` refuses to touch an existing file - it raises `DatabaseError`
+rather than altering your database.
 
 **2. Store credentials** (one time per user/server). The cleartext password is
 accepted once, hashed with SHA256 in memory, and only the digest is persisted:

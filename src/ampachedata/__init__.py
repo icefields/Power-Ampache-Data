@@ -3,6 +3,7 @@
 """ampachedata — public API. Anything not re-exported here is private."""
 from .data.AmpacheClient import AmpacheClient
 from .data.Bootstrap import storeCredentialsFromKey, storeCredentialsFromPassword
+from .data.Schema import createDatabase
 from .data.ObjectType import ObjectType
 from .data.errors import (
     AccessDeniedError,
@@ -55,6 +56,7 @@ __all__ = [
     "PlaylistRepository",
     "storeCredentialsFromPassword",
     "storeCredentialsFromKey",
+    "createDatabase",
     "AmpacheError",
     "ApiError",
     "DatabaseError",

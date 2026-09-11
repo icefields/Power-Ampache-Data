@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 icefields
 # SPDX-License-Identifier: GPL-3.0-only
-"""Shared fixtures: scratch DB built from docs/schema.sql (tests may create schema —
+"""Shared fixtures: scratch DB built from the packaged schema.sql (tests may create schema —
 the library never does), FakeTransport (no network), seed helpers."""
 import json
 import sqlite3
@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from ampachedata import AmpacheClient
+from ampachedata.data.Schema import SCHEMA_PATH
 from ampachedata.data.db.Database import Database
 from ampachedata.data.db.mappers.SessionMapper import mapSession
 from ampachedata.data.db.repositories.CredentialsRepository import CredentialsRepository
@@ -16,7 +17,7 @@ from ampachedata.data.db.repositories.SessionRepository import SessionRepository
 from ampachedata.domain.Credentials import Credentials
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_SQL = REPO_ROOT / "docs" / "schema.sql"
+SCHEMA_SQL = Path(SCHEMA_PATH)
 EXAMPLES_DIR = REPO_ROOT / "docs" / "examples"
 
 DEMO_PASSWORD_HASH = "2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea"

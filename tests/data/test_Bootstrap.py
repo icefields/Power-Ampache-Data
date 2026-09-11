@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 icefields
 # SPDX-License-Identifier: GPL-3.0-only
-"""Bootstrap tests: temp DB per test (schema from docs/schema.sql), no network."""
+"""Bootstrap tests: temp DB per test (schema from the packaged schema.sql), no network."""
 import hashlib
 import sqlite3
 from pathlib import Path
